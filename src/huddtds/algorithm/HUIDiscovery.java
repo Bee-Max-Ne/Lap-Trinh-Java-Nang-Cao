@@ -6,6 +6,7 @@ import huddtds.model.HighUtilityItemset;
 import huddtds.model.Transaction;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Phát hiện High Utility Itemset trong cửa sổ dữ liệu hiện tại.
@@ -17,11 +18,26 @@ public class HUIDiscovery {
     private final double minutil;
     private final int windowSize;
     private int maxItemsetSize = 4; // Mặc định giới hạn kích thước tập mục để tối ưu tốc độ
+    private Consumer<String> traceListener;
+    private int candidatesVisited;
+    private int candidatesPruned;
+    private int candidatesEvaluated;
 
     public HUIDiscovery(Map<String, Double> externalUtilities, double minutil, int windowSize) {
         this.externalUtilities = (externalUtilities != null) ? externalUtilities : Collections.emptyMap();
         this.minutil = minutil;
         this.windowSize = windowSize;
+        this.traceListener = null;
+    }
+
+    public void setTraceListener(Consumer<String> traceListener) {
+        this.traceListener = traceListener;
+    }
+
+    private void trace(String message) {
+        if (traceListener != null) {
+            traceListener.accept(message);
+        }
     }
 
     public HUIDiscovery(Map<String, Double> externalUtilities, double minutil, int windowSize, int maxItemsetSize) {
@@ -46,17 +62,39 @@ public class HUIDiscovery {
      */
     public List<HighUtilityItemset> discover(List<Transaction> memory, int currentTid) {
         List<Transaction> window = buildWindow(memory, currentTid);
+        trace(String.format("[HUI][TID=%d] Built window: %d transaction(s), expected range (%d, %d]",
+                currentTid, window.size(), currentTid - windowSize, currentTid));
         if (window.isEmpty()) {
+            trace(String.format("[HUI][TID=%d] No transactions in active window; discovery skipped", currentTid));
             return Collections.emptyList();
         }
 
         // 1. Lọc item tiềm năng bằng TWU có decay
         List<String> promisingItems = filterPromisingItems(window, currentTid);
+        trace(String.format("[HUI][TID=%d] TWU + decay filter retained %d promising item(s): %s",
+                currentTid, promisingItems.size(), summarizeItems(promisingItems)));
         List<HighUtilityItemset> result = new ArrayList<>();
 
         // 2. Khai phá các tập mục đạt minutil
+        candidatesVisited = 0;
+        candidatesPruned = 0;
+        candidatesEvaluated = 0;
         generateCandidates(promisingItems, 0, new ArrayList<>(), window, currentTid, result);
+        trace(String.format("[HUI][TID=%d] Candidate search complete: visited=%d, TWU-pruned=%d, utility-evaluated=%d, HUI=%d",
+                currentTid, candidatesVisited, candidatesPruned, candidatesEvaluated, result.size()));
+        List<HighUtilityItemset> topHuis = new ArrayList<>(result);
+        topHuis.sort(Comparator.comparingDouble(HighUtilityItemset::getTotalUtility).reversed());
+        for (HighUtilityItemset hui : topHuis.subList(0, Math.min(20, topHuis.size()))) {
+            trace(String.format("[HUI][TID=%d] %s utility=%.6f, Dmo=%.6f",
+                    currentTid, hui.getItems(), hui.getTotalUtility(), hui.getDistanceToRoot()));
+        }
         return result;
+    }
+
+    private String summarizeItems(List<String> items) {
+        int shown = Math.min(30, items.size());
+        String summary = items.subList(0, shown).toString();
+        return items.size() > shown ? summary + " ... (" + (items.size() - shown) + " more)" : summary;
     }
 
     private List<Transaction> buildWindow(List<Transaction> memory, int currentTid) {
@@ -109,10 +147,12 @@ public class HUIDiscovery {
         for (int index = startIndex; index < itemList.size(); index++) {
             currentItems.add(itemList.get(index));
             Set<String> candidate = new LinkedHashSet<>(currentItems);
+            candidatesVisited++;
 
             // Kiểm tra cận trên TWU của candidate trong window
             double candidateUpperBound = calculateDecayedSubtreeUpperBound(candidate, window, currentTid);
             if (candidateUpperBound >= minutil) {
+                candidatesEvaluated++;
                 HighUtilityItemset hui = calculateUtility(candidate, window, currentTid);
                 if (hui.getTotalUtility() >= minutil) {
                     hui.setDistanceToRoot(UtilityMetrics.calculateDmoToRoot(hui));
@@ -123,6 +163,8 @@ public class HUIDiscovery {
                 if (maxItemsetSize <= 0 || currentItems.size() < maxItemsetSize) {
                     generateCandidates(itemList, index + 1, currentItems, window, currentTid, result);
                 }
+            } else {
+                candidatesPruned++;
             }
 
             currentItems.remove(currentItems.size() - 1);

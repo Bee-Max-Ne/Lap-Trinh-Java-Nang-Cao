@@ -76,8 +76,7 @@ public class DriftPairBenchmark {
         System.out.printf("-> Điểm chuyển pha (Transition Point) dự kiến tại TID = %d%n%n", phase1Count);
 
         int currentTid = 0;
-        int globalDriftCount = 0;
-        int localDriftCount = 0;
+        int[] driftCounts = new int[2];
 
         long start = System.currentTimeMillis();
 
@@ -89,7 +88,7 @@ public class DriftPairBenchmark {
                 Transaction tx = TransactionParser.parseLine(line, currentTid);
                 Checkpoint cp = engine.processTransaction(tx);
                 if (cp != null) {
-                    processCheckpoint(engine, cp, currentTid, phase1Count);
+                    processCheckpoint(engine, cp, currentTid, phase1Count, driftCounts);
                 }
             }
         }
@@ -104,7 +103,7 @@ public class DriftPairBenchmark {
                 Transaction tx = TransactionParser.parseLine(line, currentTid);
                 Checkpoint cp = engine.processTransaction(tx);
                 if (cp != null) {
-                    processCheckpoint(engine, cp, currentTid, phase1Count);
+                    processCheckpoint(engine, cp, currentTid, phase1Count, driftCounts);
                 }
             }
         }
@@ -112,9 +111,11 @@ public class DriftPairBenchmark {
         long duration = System.currentTimeMillis() - start;
         System.out.printf("%nThời gian hoàn thành: %,d ms (Tốc độ: %,.0f giao dịch/giây)%n",
                 duration, (currentTid / Math.max(1.0, duration / 1000.0)));
+        System.out.printf("Phát hiện drift: Global=%d, Local=%d%n", driftCounts[0], driftCounts[1]);
     }
 
-    private static void processCheckpoint(HUDD_TDS engine, Checkpoint cp, int currentTid, int transitionTid) {
+        private static void processCheckpoint(HUDD_TDS engine, Checkpoint cp, int currentTid, int transitionTid,
+                          int[] driftCounts) {
         String phaseMarker = (currentTid <= transitionTid)
                 ? String.format("[PHA 1: TID %4d / %4d]", currentTid, transitionTid)
                 : String.format("[PHA 2 (DRIFT): TID %4d]", currentTid);
@@ -127,9 +128,11 @@ public class DriftPairBenchmark {
                 phaseMarker, cp.getTid(), cp.getHuis().size(), cp.getGlobalDistance()));
 
         if (globalDrift != null) {
+            driftCounts[0]++;
             sb.append(" | ").append(globalDrift);
         }
         if (localDrift != null) {
+            driftCounts[1]++;
             sb.append(" | ").append(localDrift);
         }
 

@@ -4,10 +4,10 @@ import huddtds.data.DatasetManager;
 import huddtds.data.DatasetValidator;
 import huddtds.data.InvestmentLoader;
 import huddtds.data.TransactionParser;
-import huddtds.model.Element;
 import huddtds.model.Transaction;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -66,7 +66,7 @@ public class DataLayerTest {
 
             System.out.println("PASSED");
             return true;
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return fail("Ngoại lệ: " + e.getMessage());
         }
     }
@@ -82,7 +82,7 @@ public class DataLayerTest {
 
             System.out.println("PASSED");
             return true;
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return fail("Ngoại lệ: " + e.getMessage());
         }
     }
@@ -98,7 +98,7 @@ public class DataLayerTest {
 
             System.out.println("PASSED (75 items loaded)");
             return true;
-        } catch (Exception e) {
+        } catch (IOException | IllegalArgumentException e) {
             return fail("Ngoại lệ: " + e.getMessage());
         }
     }

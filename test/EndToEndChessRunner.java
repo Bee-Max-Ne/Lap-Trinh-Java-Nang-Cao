@@ -8,7 +8,6 @@ import huddtds.model.HighUtilityItemset;
 import huddtds.model.Transaction;
 
 import java.io.BufferedReader;
-import java.util.Locale;
 import java.util.Map;
 
 /**

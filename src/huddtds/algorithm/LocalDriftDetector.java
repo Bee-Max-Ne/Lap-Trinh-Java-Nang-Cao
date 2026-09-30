@@ -8,11 +8,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class LocalDriftDetector {
 
     private final double alpha;
     private final int sampleSize;
+    private Consumer<String> traceListener;
 
     public LocalDriftDetector(double alpha, double range) {
         this(alpha, range, 1);
@@ -21,96 +23,72 @@ public class LocalDriftDetector {
     public LocalDriftDetector(double alpha, double range, int sampleSize) {
         this.alpha = alpha;
         this.sampleSize = Math.max(1, sampleSize);
+        this.traceListener = null;
     }
 
-    public String detect(List<Checkpoint> checkpoints) {
-
-    if (checkpoints == null || checkpoints.size() < 2) {
-        return null;
+    public void setTraceListener(Consumer<String> traceListener) {
+        this.traceListener = traceListener;
     }
 
-    Checkpoint previous =
-            checkpoints.get(checkpoints.size() - 2);
-
-    Checkpoint current =
-            checkpoints.get(checkpoints.size() - 1);
-
-    Set<String> candidateItemsets =
-            collectItemsets(previous, current);
-
-    if (candidateItemsets.isEmpty()) {
-        return null;
-    }
-
-    int n1 = sampleSize;
-    int n2 = sampleSize;
-
-    int hypothesisCount =
-            candidateItemsets.size();
-
-    double adjustedAlpha =
-            UtilityMetrics.bonferroniAdjustedAlpha(
-                    alpha,
-                    hypothesisCount);
-
-    for (String itemsetKey : candidateItemsets) {
-
-        Set<String> itemset =
-                parseItemsetKey(itemsetKey);
-
-        double x1 =
-                utilityAt(previous, itemset);
-
-        double x2 =
-                utilityAt(current, itemset);
-
-        double[] observations = {x1, x2};
-
-        double variance =
-                UtilityMetrics.variance(observations);
-
-        double epsilon =
-                UtilityMetrics.localDriftEpsilon(
-                        n1,
-                        n2,
-                        variance,
-                        adjustedAlpha);
-
-        double difference =
-                Math.abs(x1 - x2);
-
-        System.out.println(
-                String.format(
-                        "[LOCAL CHECK] T%d -> T%d, X=%s, " +
-                        "n1=%d, n2=%d, X1=%.6f, X2=%.6f, " +
-                        "variance=%.6f, alpha'=%.8f, " +
-                        "epsilon=%.6f, |X1-X2|=%.6f",
-                        previous.getTid(),
-                        current.getTid(),
-                        itemsetKey,
-                        n1,
-                        n2,
-                        x1,
-                        x2,
-                        variance,
-                        adjustedAlpha,
-                        epsilon,
-                        difference
-                )
-        );
-
-        if (difference >= epsilon) {
-            System.out.println(
-                    "[LOCAL DRIFT DETECTED] X="
-                            + itemsetKey
-            );
-
-            return itemsetKey;
+    private void trace(String message) {
+        if (traceListener != null) {
+            traceListener.accept(message);
+        } else {
+            System.out.println(message);
         }
     }
 
-    return null;
-}
+    public String detect(List<Checkpoint> checkpoints) {
+        if (checkpoints == null || checkpoints.size() < 2) {
+            return null;
+        }
+
+        Checkpoint previous = checkpoints.get(checkpoints.size() - 2);
+        Checkpoint current = checkpoints.get(checkpoints.size() - 1);
+        Set<String> candidateItemsets = collectItemsets(previous, current);
+        if (candidateItemsets.isEmpty()) {
+            trace(String.format("[LOCAL CHECK] T%d -> T%d; no itemsets to compare",
+                previous.getTid(), current.getTid()));
+            return null;
+        }
+
+        int n1 = sampleSize;
+        int n2 = sampleSize;
+        int hypothesisCount = candidateItemsets.size();
+        double adjustedAlpha = UtilityMetrics.bonferroniAdjustedAlpha(alpha, hypothesisCount);
+        trace(String.format("[LOCAL CHECK] T%d -> T%d; hypotheses=%d, alpha'=%.8f",
+            previous.getTid(), current.getTid(), hypothesisCount, adjustedAlpha));
+
+        int testedItemsets = 0;
+        for (String itemsetKey : candidateItemsets) {
+            Set<String> itemset = parseItemsetKey(itemsetKey);
+            double x1 = utilityAt(previous, itemset);
+            double x2 = utilityAt(current, itemset);
+            double[] observations = {x1, x2};
+            double variance = UtilityMetrics.variance(observations);
+            double epsilon = UtilityMetrics.localDriftEpsilon(n1, n2, variance, adjustedAlpha);
+            double difference = Math.abs(x1 - x2);
+
+            if (testedItemsets < 25) {
+            trace(String.format(
+                "[LOCAL CHECK] T%d -> T%d, X=%s, n1=%d, n2=%d, X1=%.6f, X2=%.6f, " +
+                    "variance=%.6f, alpha'=%.8f, epsilon=%.6f, |X1-X2|=%.6f",
+                previous.getTid(), current.getTid(), itemsetKey, n1, n2, x1, x2,
+                variance, adjustedAlpha, epsilon, difference));
+            } else if (testedItemsets == 25) {
+            trace(String.format("[LOCAL CHECK] Suppressing diagnostics for %d additional itemset(s)",
+                hypothesisCount - testedItemsets));
+            }
+            testedItemsets++;
+
+            if (difference >= epsilon) {
+            trace("[LOCAL DRIFT DETECTED] X=" + itemsetKey);
+            return itemsetKey;
+            }
+        }
+
+        return null;
+        }
 
     private Set<String> collectItemsets(
             Checkpoint previous,

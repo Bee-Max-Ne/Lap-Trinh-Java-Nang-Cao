@@ -4,6 +4,7 @@ import huddtds.math.UtilityMetrics;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Global Utility Drift Detector.
@@ -51,6 +52,7 @@ public class GlobalDriftDetector {
      * Last detected trend.
      */
     private String lastDirection;
+        private Consumer<String> traceListener;
 
     public GlobalDriftDetector(
             double alpha,
@@ -64,7 +66,12 @@ public class GlobalDriftDetector {
 
         this.cutPoint = 0;
         this.lastDirection = null;
+                this.traceListener = null;
     }
+
+        public void setTraceListener(Consumer<String> traceListener) {
+                this.traceListener = traceListener;
+        }
 
     /**
      * Add one checkpoint distance and
@@ -218,8 +225,7 @@ public class GlobalDriftDetector {
                         testU - testV
                 );
 
-        System.out.println(
-                String.format(
+        String diagnostic = String.format(
                         "[GLOBAL CHECK] n=%d, m=%d, Udrift=%.6f, V=%.6f, " +
                                 "epsilonU=%.6f, epsilonV=%.6f, " +
                                 "epsilon=%.6f, |U-V|=%.6f",
@@ -231,8 +237,12 @@ public class GlobalDriftDetector {
                         epsilonV,
                         epsilon,
                         difference
-                )
-        );
+                                );
+                if (traceListener != null) {
+                        traceListener.accept(diagnostic);
+                } else {
+                        System.out.println(diagnostic);
+                }
 
         if (difference >= epsilon) {
 

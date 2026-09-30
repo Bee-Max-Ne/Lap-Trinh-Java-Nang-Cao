@@ -1,7 +1,6 @@
 package huddtds.algorithm;
 
 import huddtds.model.Checkpoint;
-import huddtds.model.DriftResult;
 import huddtds.model.HighUtilityItemset;
 import huddtds.model.Transaction;
 
@@ -9,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Lớp HUDD_TDS là bộ điều phối trung tâm của hệ thống phát hiện trôi dạt độ lợi.
@@ -36,6 +36,8 @@ public class HUDD_TDS {
 
     /** Bộ khai phá HUI */
     private final HUIDiscovery huiDiscovery;
+    private Consumer<String> traceListener;
+    private boolean traceEachTransaction;
 
     public HUDD_TDS(Map<String, Double> externalUtilities,
                     double minutil,
@@ -52,6 +54,8 @@ public class HUDD_TDS {
         this.globalDriftDetector = new GlobalDriftDetector(alphaConfidence, 1.0);
         this.localDriftDetector = new LocalDriftDetector(alphaConfidence, 100.0, windowSize);
         this.huiDiscovery = new HUIDiscovery(this.externalUtilities, minutil, windowSize);
+        this.traceListener = null;
+        this.traceEachTransaction = false;
     }
 
     public HUDD_TDS(Map<String, Double> externalUtilities,
@@ -88,6 +92,20 @@ public class HUDD_TDS {
         return huiDiscovery;
     }
 
+    public void setTraceListener(Consumer<String> traceListener, boolean traceEachTransaction) {
+        this.traceListener = traceListener;
+        this.traceEachTransaction = traceEachTransaction;
+        huiDiscovery.setTraceListener(traceListener);
+        globalDriftDetector.setTraceListener(traceListener);
+        localDriftDetector.setTraceListener(traceListener);
+    }
+
+    private void trace(String message) {
+        if (traceListener != null) {
+            traceListener.accept(message);
+        }
+    }
+
     /**
      * Xử lý từng giao dịch theo dạng luồng (Stream).
      * Tự động dọn dẹp các giao dịch nằm ngoài cửa sổ trượt để bảo toàn bộ nhớ RAM.
@@ -97,18 +115,31 @@ public class HUDD_TDS {
      */
     public Checkpoint processTransaction(Transaction tx) {
         memory.add(tx);
+        int removedTransactions = 0;
 
         // Quản trị bộ nhớ trượt: giữ lại tối đa 3 lần windowSize để phục vụ so sánh giữa các checkpoint
         int safeRetentionTid = tx.getTid() - (windowSize * 3);
         while (!memory.isEmpty() && memory.get(0).getTid() <= safeRetentionTid) {
             memory.remove(0);
+            removedTransactions++;
+        }
+
+        if (traceEachTransaction || tx.getTid() == 1 || tx.getTid() % interval == 0) {
+            trace(String.format("[STREAM] TID=%d accepted; items=%d, TU=%.4f", tx.getTid(),
+                    tx.getElements().size(), tx.getTransactionUtility()));
+            trace(String.format("[WINDOW] retained=%d transactions; removed=%d old transactions (retention boundary TID<=%d)",
+                    memory.size(), removedTransactions, safeRetentionTid));
         }
 
         // Kiểm tra xem đã đến chu kỳ checkpoint chưa
         if (tx.getTid() % interval != 0) {
+            if (traceEachTransaction) {
+                trace(String.format("[CHECKPOINT] TID=%d skipped; next checkpoint at a multiple of %d", tx.getTid(), interval));
+            }
             return null;
         }
 
+        trace(String.format("[CHECKPOINT] TID=%d started; minutil=%.4f, windowSize=%d", tx.getTid(), minutil, windowSize));
         Checkpoint cp = new Checkpoint(tx.getTid());
         cp.getHuis().addAll(huiDiscovery(tx.getTid()));
 
@@ -118,6 +149,8 @@ public class HUDD_TDS {
         }
         cp.setGlobalDistance(totalDistance);
         checkpoints.add(cp);
+        trace(String.format("[CHECKPOINT] TID=%d complete; HUI count=%d, DIS_HS=%.6f",
+            tx.getTid(), cp.getHuis().size(), cp.getGlobalDistance()));
         return cp;
     }
 

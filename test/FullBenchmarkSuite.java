@@ -43,7 +43,6 @@ public class FullBenchmarkSuite {
         File logFile = new File(logDir, "benchmark_" + timestamp + ".log");
 
         DatasetManager manager = new DatasetManager();
-        List<String> datasets = manager.getDatasetNames();
 
         List<BenchmarkResult> results = new ArrayList<>();
 

@@ -19,9 +19,16 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
+import javax.swing.text.BadLocationException;
 import java.awt.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 
 /**
@@ -62,6 +69,7 @@ public class HUDD_TDS_GUI extends JFrame {
     private final JButton btnStop;
     private final JButton btnReset;
     private final JButton btnExport;
+    private final JCheckBox chkTraceEachTransaction;
 
     // Thanh tiến trình & Thẻ thống kê
     private final JProgressBar progressBar;
@@ -92,9 +100,11 @@ public class HUDD_TDS_GUI extends JFrame {
     private final ChartPanel chartPanel;
     private final JComboBox<String> cbChartMetric;
     private final JTextArea calculationDetails;
+    private final JTextArea processLogArea;
 
     // Luồng ngầm
     private SimulationWorker currentWorker;
+    private File currentProcessLogFile;
     private volatile int currentDelayMs = 0;
 
     // Thống kê tổng hợp
@@ -138,7 +148,7 @@ public class HUDD_TDS_GUI extends JFrame {
         List<String> datasetOptions = new ArrayList<>(datasetManager.getDatasetNames());
         datasetOptions.add(0, "Running Example (Mẫu)");
         datasetOptions.add("[+ Duyệt tệp ngoài...]");
-        cbDatasets = new JComboBox<>(datasetOptions.toArray(new String[0]));
+        cbDatasets = new JComboBox<>(datasetOptions.toArray(String[]::new));
         cbDatasets.setPreferredSize(new Dimension(175, 25));
         configPanel.add(cbDatasets, gbc);
 
@@ -197,6 +207,9 @@ public class HUDD_TDS_GUI extends JFrame {
         lblDelayValue.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         lblDelayValue.setPreferredSize(new Dimension(80, 20));
         controlRow.add(lblDelayValue);
+
+        chkTraceEachTransaction = new JCheckBox("Log từng giao dịch");
+        chkTraceEachTransaction.setToolTipText("Ghi chi tiết từng giao dịch vào nhật ký; có thể tạo tệp lớn với dataset lớn");
 
         btnValidate = new JButton("Kiểm tra Data");
         btnValidate.setBackground(new Color(23, 162, 184));
@@ -320,12 +333,11 @@ public class HUDD_TDS_GUI extends JFrame {
 
         // TAB 3: NHẬP TAY (MANUAL DATA)
         JPanel manualPanel = new JPanel(new BorderLayout(4, 4));
-        manualInputArea = new JTextArea(
-                "a:1 c:1 d:1\n"
-                        + "a:2 c:6 e:2 g:5\n"
-                        + "b:4 c:3 d:3 e:1\n"
-                        + "b:2 c:3 e:2 g:2"
-        );
+        manualInputArea = new JTextArea("""
+            a:1 c:1 d:1
+            a:2 c:6 e:2 g:5
+            b:4 c:3 d:3 e:1
+            b:2 c:3 e:2 g:2""");
         manualInputArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         manualPanel.add(new JScrollPane(manualInputArea), BorderLayout.CENTER);
         tabbedPane.addTab("Dữ liệu nhập tay", manualPanel);
@@ -336,6 +348,18 @@ public class HUDD_TDS_GUI extends JFrame {
         summaryStatsArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         summaryStatsArea.setText("Chưa có thống kê thực nghiệm. Nhấn 'Phát luồng (RUN)' để tiến hành.");
         tabbedPane.addTab("Tổng quan Thống kê", new JScrollPane(summaryStatsArea));
+
+        processLogArea = new JTextArea();
+        processLogArea.setEditable(false);
+        processLogArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        processLogArea.setLineWrap(true);
+        processLogArea.setWrapStyleWord(true);
+        JPanel processLogPanel = new JPanel(new BorderLayout(4, 4));
+        JPanel processLogControls = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 3));
+        processLogControls.add(chkTraceEachTransaction);
+        processLogPanel.add(processLogControls, BorderLayout.NORTH);
+        processLogPanel.add(new JScrollPane(processLogArea), BorderLayout.CENTER);
+        tabbedPane.addTab("Nhật ký tiến trình", processLogPanel);
 
         // BIỂU ĐỒ NÂNG CAO (CHART PANEL)
         JPanel chartContainer = new JPanel(new BorderLayout(3, 3));
@@ -403,8 +427,11 @@ public class HUDD_TDS_GUI extends JFrame {
 
         // Lọc bảng HUI theo từ khóa
         txtSearchHui.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
             public void insertUpdate(DocumentEvent e) { applyHuiFilter(); }
+            @Override
             public void removeUpdate(DocumentEvent e) { applyHuiFilter(); }
+            @Override
             public void changedUpdate(DocumentEvent e) { applyHuiFilter(); }
         });
 
@@ -446,13 +473,10 @@ public class HUDD_TDS_GUI extends JFrame {
     }
 
     private void applyDriftFilter() {
-        int idx = cbFilterDrift.getSelectedIndex();
-        if (idx == 1) {
-            driftSorter.setRowFilter(RowFilter.regexFilter("GLOBAL DRIFT", 1));
-        } else if (idx == 2) {
-            driftSorter.setRowFilter(RowFilter.regexFilter("LOCAL DRIFT", 1));
-        } else {
-            driftSorter.setRowFilter(null);
+        switch (cbFilterDrift.getSelectedIndex()) {
+            case 1 -> driftSorter.setRowFilter(RowFilter.regexFilter("GLOBAL DRIFT", 1));
+            case 2 -> driftSorter.setRowFilter(RowFilter.regexFilter("LOCAL DRIFT", 1));
+            default -> driftSorter.setRowFilter(null);
         }
     }
 
@@ -637,9 +661,13 @@ public class HUDD_TDS_GUI extends JFrame {
         btnStop.setEnabled(true);
         cbDatasets.setEnabled(false);
         btnBrowseCustom.setEnabled(false);
+        chkTraceEachTransaction.setEnabled(false);
 
         currentDelayMs = sliderDelay.getValue();
-        currentWorker = new SimulationWorker(selected, minutil, interval, windowSize, alpha, maxPattern, maxTxLimit);
+        currentProcessLogFile = new File("logs", "HUDD_TDS_Process_"
+            + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date()) + ".log");
+        currentWorker = new SimulationWorker(selected, minutil, interval, windowSize, alpha,
+            maxPattern, maxTxLimit, chkTraceEachTransaction.isSelected(), currentProcessLogFile);
         currentWorker.execute();
     }
 
@@ -694,6 +722,8 @@ public class HUDD_TDS_GUI extends JFrame {
         progressBar.setString("Sẵn sàng phát luồng");
         calculationDetails.setText("Hệ thống đã đặt lại trạng thái ban đầu.");
         summaryStatsArea.setText("Chưa có thống kê thực nghiệm.");
+        processLogArea.setText("");
+        currentProcessLogFile = null;
     }
 
     private void onShowExportMenu() {
@@ -710,6 +740,10 @@ public class HUDD_TDS_GUI extends JFrame {
         JMenuItem itemExportSummary = new JMenuItem("Xuất Báo cáo Thống kê Tổng thể (TXT)");
         itemExportSummary.addActionListener(e -> exportSummaryReport());
         menu.add(itemExportSummary);
+
+        JMenuItem itemExportProcessLog = new JMenuItem("Xuất Nhật ký tiến trình (TXT)");
+        itemExportProcessLog.addActionListener(e -> exportProcessLog());
+        menu.add(itemExportProcessLog);
 
         menu.show(btnExport, 0, btnExport.getHeight());
     }
@@ -783,6 +817,42 @@ public class HUDD_TDS_GUI extends JFrame {
         }
     }
 
+    private void exportProcessLog() {
+        if (currentProcessLogFile == null || !currentProcessLogFile.isFile()) {
+            JOptionPane.showMessageDialog(this, "Chưa có nhật ký tiến trình để xuất.", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setSelectedFile(new File(currentProcessLogFile.getName()));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File saveFile = fileChooser.getSelectedFile();
+            try {
+                Files.copy(currentProcessLogFile.toPath(), saveFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                JOptionPane.showMessageDialog(this, "Xuất nhật ký tiến trình thành công:\n" + saveFile.getAbsolutePath(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Lỗi khi lưu tệp: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void appendProcessLog(String message) {
+        processLogArea.append(message);
+        processLogArea.append(System.lineSeparator());
+        if (processLogArea.getDocument().getLength() > 500_000) {
+            try {
+                int trimLength = processLogArea.getDocument().getLength() - 400_000;
+                String prefix = processLogArea.getDocument().getText(0, trimLength);
+                int endOfLine = prefix.lastIndexOf('\n');
+                if (endOfLine >= 0) {
+                    processLogArea.getDocument().remove(0, endOfLine + 1);
+                }
+            } catch (BadLocationException ignored) {
+            }
+        }
+        processLogArea.setCaretPosition(processLogArea.getDocument().getLength());
+    }
+
     /**
      * Lớp SwingWorker xử lý luồng ngầm với hỗ trợ Pause/Resume và Stream Speed Control.
      */
@@ -794,14 +864,19 @@ public class HUDD_TDS_GUI extends JFrame {
         private final double alpha;
         private final int maxPattern;
         private final int maxTxLimit;
+        private final boolean traceEachTransaction;
+        private final File logFile;
 
         private volatile boolean paused = false;
         private final Object pauseLock = new Object();
+        private BufferedWriter traceWriter;
+        private long traceMessageCount;
 
         private long startTimeMs = 0;
         private int totalProcessedTransactions = 0;
 
-        public SimulationWorker(String datasetName, double minutil, int interval, int windowSize, double alpha, int maxPattern, int maxTxLimit) {
+        public SimulationWorker(String datasetName, double minutil, int interval, int windowSize, double alpha,
+                                int maxPattern, int maxTxLimit, boolean traceEachTransaction, File logFile) {
             this.datasetName = datasetName;
             this.minutil = minutil;
             this.interval = interval;
@@ -809,6 +884,25 @@ public class HUDD_TDS_GUI extends JFrame {
             this.alpha = alpha;
             this.maxPattern = maxPattern;
             this.maxTxLimit = maxTxLimit;
+            this.traceEachTransaction = traceEachTransaction;
+            this.logFile = logFile;
+        }
+
+        private void trace(String message) {
+            String entry = String.format("[%1$tF %1$tT.%1$tL] %2$s", new Date(), message);
+            if (traceWriter != null) {
+                try {
+                    traceWriter.write(entry);
+                    traceWriter.newLine();
+                    if (++traceMessageCount % 50 == 0) {
+                        traceWriter.flush();
+                    }
+                } catch (IOException ex) {
+                    publish(SimulationUpdate.trace("[LOG ERROR] Không thể ghi tiếp tệp log: " + ex.getMessage()));
+                    traceWriter = null;
+                }
+            }
+            publish(SimulationUpdate.trace(entry));
         }
 
         public void setPaused(boolean paused) {
@@ -827,6 +921,17 @@ public class HUDD_TDS_GUI extends JFrame {
         @Override
         protected Void doInBackground() throws Exception {
             this.startTimeMs = System.currentTimeMillis();
+            File logDirectory = logFile.getParentFile();
+            if (logDirectory != null && !logDirectory.exists() && !logDirectory.mkdirs()) {
+                throw new IOException("Không thể tạo thư mục log: " + logDirectory.getAbsolutePath());
+            }
+            traceWriter = Files.newBufferedWriter(logFile.toPath(), StandardCharsets.UTF_8);
+            trace("[RUN] Bắt đầu phiên; dataset=" + datasetName
+                    + ", minutil=" + minutil + ", interval=" + interval
+                    + ", window=" + windowSize + ", alpha=" + alpha
+                    + ", maxPattern=" + maxPattern + ", maxTx=" + maxTxLimit
+                    + ", traceEachTransaction=" + traceEachTransaction);
+            try {
             Map<String, Double> externalUtilities = new HashMap<>();
 
             // 1. Nạp bảng đầu tư
@@ -842,8 +947,11 @@ public class HUDD_TDS_GUI extends JFrame {
             } else if (!datasetName.startsWith("[Tùy chỉnh")) {
                 externalUtilities = datasetManager.loadInvestmentTable(datasetName);
             }
+            trace("[DATA] Đã nạp bảng utility; số item=" + externalUtilities.size());
 
             HUDD_TDS engine = new HUDD_TDS(externalUtilities, minutil, interval, windowSize, alpha, maxPattern);
+            engine.setTraceListener(this::trace, traceEachTransaction);
+            trace("[ENGINE] Đã khởi tạo HUDD-TDS và gắn trace listener.");
 
             // 2. Mở luồng giao dịch
             BufferedReader reader;
@@ -862,6 +970,7 @@ public class HUDD_TDS_GUI extends JFrame {
                 }
                 reader = datasetManager.openTransactionStream(datasetName);
             }
+            trace("[DATA] Đã mở transaction stream; ước tính số dòng=" + totalLinesEstimate);
 
             try (reader) {
                 String line;
@@ -897,6 +1006,10 @@ public class HUDD_TDS_GUI extends JFrame {
                     }
 
                     Transaction tx = TransactionParser.parseLine(line, tid);
+                    if (traceEachTransaction || tid == 1 || tid % interval == 0) {
+                        trace(String.format(Locale.US, "[PARSE] TID=%d hợp lệ; items=%d, TU=%.4f",
+                                tid, tx.getElements().size(), tx.getTransactionUtility()));
+                    }
                     Checkpoint cp = engine.processTransaction(tx);
 
                     // Tính tốc độ xử lý
@@ -904,8 +1017,12 @@ public class HUDD_TDS_GUI extends JFrame {
                     int currentTxPerSec = (int) ((totalProcessedTransactions * 1000.0) / elapsed);
 
                     if (cp != null) {
+                        trace("[DRIFT] Bắt đầu kiểm định drift cho checkpoint TID=" + cp.getTid());
                         String gDrift = engine.checkGlobalDrift();
                         String lDrift = engine.checkLocalDrift();
+                        trace("[DRIFT] Hoàn tất kiểm định TID=" + cp.getTid()
+                                + "; global=" + (gDrift == null ? "ổn định" : gDrift)
+                                + "; local=" + (lDrift == null ? "ổn định" : lDrift));
                         publish(new SimulationUpdate(tx, cp, gDrift, lDrift, tid,
                                 maxTxLimit > 0 ? maxTxLimit : totalLinesEstimate, currentTxPerSec));
                     } else if (tid % 100 == 0) {
@@ -916,17 +1033,36 @@ public class HUDD_TDS_GUI extends JFrame {
                     // Điều chỉnh độ trễ phát luồng
                     int delay = currentDelayMs;
                     if (delay > 0) {
-                        Thread.sleep(delay);
+                        TimeUnit.MILLISECONDS.sleep(delay);
                     }
                 }
             }
 
+            trace(isCancelled() ? "[RUN] Đã dừng theo yêu cầu." : "[RUN] Hoàn tất thành công; transaction stream đã xử lý xong.");
             return null;
+            } catch (IOException | InterruptedException | RuntimeException ex) {
+                trace(isCancelled() ? "[RUN] Đã hủy trong khi xử lý."
+                        : "[ERROR] " + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+                throw ex;
+            } finally {
+                if (traceWriter != null) {
+                    try {
+                        traceWriter.flush();
+                        traceWriter.close();
+                    } finally {
+                        traceWriter = null;
+                    }
+                }
+            }
         }
 
         @Override
         protected void process(List<SimulationUpdate> updates) {
             for (SimulationUpdate upd : updates) {
+                if (upd.traceMessage != null) {
+                    appendProcessLog(upd.traceMessage);
+                    continue;
+                }
                 if (upd.currentTid > 0) {
                     lblCurrentTID.setText("T_" + upd.currentTid);
                     int progress = (int) Math.min(100, (upd.currentTid * 100.0) / Math.max(1, upd.totalEstimate));
@@ -1036,8 +1172,30 @@ public class HUDD_TDS_GUI extends JFrame {
             btnStop.setEnabled(false);
             cbDatasets.setEnabled(true);
             btnBrowseCustom.setEnabled(true);
-            progressBar.setValue(100);
-            progressBar.setString("Hoàn tất luồng xử lý! Tổng số: " + totalProcessedTransactions + " giao dịch.");
+            chkTraceEachTransaction.setEnabled(true);
+
+            boolean completed = false;
+            try {
+                get();
+                completed = true;
+                progressBar.setValue(100);
+                progressBar.setString("Hoàn tất luồng xử lý! Tổng số: " + totalProcessedTransactions + " giao dịch.");
+                appendProcessLog("[RUN] Hoàn tất thành công. Tệp log: " + logFile.getAbsolutePath());
+            } catch (CancellationException ex) {
+                progressBar.setString("Đã dừng luồng. Tổng số: " + totalProcessedTransactions + " giao dịch.");
+                appendProcessLog("[RUN] Đã dừng. Tệp log: " + logFile.getAbsolutePath());
+            } catch (ExecutionException ex) {
+                Throwable cause = ex.getCause();
+                progressBar.setString("Luồng kết thúc do lỗi.");
+                appendProcessLog("[ERROR] " + (cause == null ? ex.getMessage() : cause.toString()));
+                JOptionPane.showMessageDialog(HUDD_TDS_GUI.this,
+                        "Lỗi khi xử lý luồng: " + (cause == null ? ex.getMessage() : cause.getMessage()),
+                        "Lỗi xử lý", JOptionPane.ERROR_MESSAGE);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                progressBar.setString("Không thể xác nhận trạng thái luồng.");
+                appendProcessLog("[ERROR] Bị gián đoạn khi chờ kết quả worker.");
+            }
 
             long elapsed = Math.max(1, System.currentTimeMillis() - startTimeMs);
             summaryStatsArea.setText(String.format(Locale.US,
@@ -1051,12 +1209,13 @@ public class HUDD_TDS_GUI extends JFrame {
                             + "Số lần phát hiện Local Drift: %,d%n"
                             + "Tổng thời gian: %.2f giây%n"
                             + "Tốc độ thông lượng: %,d tx/giây%n"
-                            + "Trạng thái: HOÀN TẤT THÀNH CÔNG ✓%n",
+                                + "Trạng thái: %s%n",
                     datasetName, minutil, interval, windowSize, alpha, maxPattern,
                     totalProcessedTransactions, totalCheckpointsCount,
                     totalGlobalDriftsCount, totalLocalDriftsCount,
                     elapsed / 1000.0,
-                    (int) ((totalProcessedTransactions * 1000.0) / elapsed)
+                            (int) ((totalProcessedTransactions * 1000.0) / elapsed),
+                            completed ? "HOÀN TẤT THÀNH CÔNG ✓" : (isCancelled() ? "ĐÃ DỪNG" : "KẾT THÚC DO LỖI")
             ));
         }
     }
@@ -1069,6 +1228,7 @@ public class HUDD_TDS_GUI extends JFrame {
         final int currentTid;
         final int totalEstimate;
         final int speedTxPerSec;
+        final String traceMessage;
 
         SimulationUpdate(Transaction transaction, Checkpoint checkpoint, String globalDrift, String localDrift, int currentTid, int totalEstimate, int speedTxPerSec) {
             this.transaction = transaction;
@@ -1078,6 +1238,22 @@ public class HUDD_TDS_GUI extends JFrame {
             this.currentTid = currentTid;
             this.totalEstimate = totalEstimate;
             this.speedTxPerSec = speedTxPerSec;
+            this.traceMessage = null;
+        }
+
+        private SimulationUpdate(String traceMessage) {
+            this.transaction = null;
+            this.checkpoint = null;
+            this.globalDrift = null;
+            this.localDrift = null;
+            this.currentTid = 0;
+            this.totalEstimate = 0;
+            this.speedTxPerSec = 0;
+            this.traceMessage = traceMessage;
+        }
+
+        static SimulationUpdate trace(String message) {
+            return new SimulationUpdate(message);
         }
     }
 
@@ -1085,7 +1261,8 @@ public class HUDD_TDS_GUI extends JFrame {
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {
+            } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
+                     | UnsupportedLookAndFeelException ignored) {
             }
             new HUDD_TDS_GUI().setVisible(true);
         });
