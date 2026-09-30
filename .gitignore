@@ -1,0 +1,11 @@
+out/
+bin/
+logs/
+.vscode/
+*.rar
+*.zip
+*.odt
+*.csv
+Ket Qua/
+Dataset-metadata (CapNhat 14-02)/
+data/datasets/
