@@ -1,13 +1,17 @@
 package huddtds.algorithm;
 
+import huddtds.algorithm.drift.GlobalDriftStrategy;
+import huddtds.algorithm.drift.LocalDriftStrategy;
+import huddtds.algorithm.mining.HUIItemsetMiner;
 import huddtds.model.Checkpoint;
+import huddtds.model.DriftResult;
 import huddtds.model.HighUtilityItemset;
 import huddtds.model.Transaction;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -16,7 +20,6 @@ import java.util.function.Consumer;
  * và kiểm định trôi dạt toàn cục (Global Drift) và cục bộ (Local Drift).
  */
 public class HUDD_TDS {
-    private final Map<String, Double> externalUtilities;
     private final double minutil;
     private final int interval;
     private final int windowSize;
@@ -29,13 +32,13 @@ public class HUDD_TDS {
     private final List<Checkpoint> checkpoints;
 
     /** Bộ phát hiện drift toàn cục */
-    private final GlobalDriftDetector globalDriftDetector;
+    private final GlobalDriftStrategy globalDriftDetector;
 
     /** Bộ phát hiện drift cục bộ */
-    private final LocalDriftDetector localDriftDetector;
+    private final LocalDriftStrategy localDriftDetector;
 
     /** Bộ khai phá HUI */
-    private final HUIDiscovery huiDiscovery;
+    private final HUIItemsetMiner huiMiner;
     private Consumer<String> traceListener;
     private boolean traceEachTransaction;
 
@@ -44,18 +47,10 @@ public class HUDD_TDS {
                     int interval,
                     int windowSize,
                     double alphaConfidence) {
-        this.externalUtilities = (externalUtilities != null) ? externalUtilities : Collections.emptyMap();
-        this.minutil = minutil;
-        this.interval = interval;
-        this.windowSize = windowSize;
-        this.alphaConfidence = alphaConfidence;
-        this.memory = new ArrayList<>();
-        this.checkpoints = new ArrayList<>();
-        this.globalDriftDetector = new GlobalDriftDetector(alphaConfidence, 1.0);
-        this.localDriftDetector = new LocalDriftDetector(alphaConfidence, 100.0, windowSize);
-        this.huiDiscovery = new HUIDiscovery(this.externalUtilities, minutil, windowSize);
-        this.traceListener = null;
-        this.traceEachTransaction = false;
+        this(externalUtilities, minutil, interval, windowSize, alphaConfidence,
+                new HUIDiscovery(externalUtilities, minutil, windowSize),
+                new GlobalDriftDetector(alphaConfidence, 1.0),
+                new LocalDriftDetector(alphaConfidence, 100.0, windowSize));
     }
 
     public HUDD_TDS(Map<String, Double> externalUtilities,
@@ -64,8 +59,34 @@ public class HUDD_TDS {
                     int windowSize,
                     double alphaConfidence,
                     int maxItemsetSize) {
-        this(externalUtilities, minutil, interval, windowSize, alphaConfidence);
-        this.huiDiscovery.setMaxItemsetSize(maxItemsetSize);
+        this(externalUtilities, minutil, interval, windowSize, alphaConfidence,
+                new HUIDiscovery(externalUtilities, minutil, windowSize, maxItemsetSize),
+                new GlobalDriftDetector(alphaConfidence, 1.0),
+                new LocalDriftDetector(alphaConfidence, 100.0, windowSize));
+    }
+
+    /**
+     * Creates the stream coordinator with explicitly selected algorithm strategies.
+     */
+    public HUDD_TDS(Map<String, Double> externalUtilities,
+                    double minutil,
+                    int interval,
+                    int windowSize,
+                    double alphaConfidence,
+                    HUIItemsetMiner huiMiner,
+                    GlobalDriftStrategy globalDriftDetector,
+                    LocalDriftStrategy localDriftDetector) {
+        this.minutil = minutil;
+        this.interval = interval;
+        this.windowSize = windowSize;
+        this.alphaConfidence = alphaConfidence;
+        this.memory = new ArrayList<>();
+        this.checkpoints = new ArrayList<>();
+        this.globalDriftDetector = Objects.requireNonNull(globalDriftDetector, "globalDriftDetector");
+        this.localDriftDetector = Objects.requireNonNull(localDriftDetector, "localDriftDetector");
+        this.huiMiner = Objects.requireNonNull(huiMiner, "huiMiner");
+        this.traceListener = null;
+        this.traceEachTransaction = false;
     }
 
     public List<Checkpoint> getCheckpoints() {
@@ -88,14 +109,27 @@ public class HUDD_TDS {
         return minutil;
     }
 
+    /**
+     * Returns the default concrete miner for legacy callers.
+     *
+     * @throws IllegalStateException when a different miner strategy was injected
+     */
+    @Deprecated
     public HUIDiscovery getHuiDiscovery() {
-        return huiDiscovery;
+        if (huiMiner instanceof HUIDiscovery discovery) {
+            return discovery;
+        }
+        throw new IllegalStateException("The configured HUI miner is not a HUIDiscovery instance");
+    }
+
+    public HUIItemsetMiner getHuiMiner() {
+        return huiMiner;
     }
 
     public void setTraceListener(Consumer<String> traceListener, boolean traceEachTransaction) {
         this.traceListener = traceListener;
         this.traceEachTransaction = traceEachTransaction;
-        huiDiscovery.setTraceListener(traceListener);
+        huiMiner.setTraceListener(traceListener);
         globalDriftDetector.setTraceListener(traceListener);
         localDriftDetector.setTraceListener(traceListener);
     }
@@ -161,7 +195,7 @@ public class HUDD_TDS {
      * @return danh sách HUI thoả ngưỡng minutil
      */
     public List<HighUtilityItemset> huiDiscovery(int t) {
-        return huiDiscovery.discover(memory, t);
+        return huiMiner.discover(memory, t);
     }
 
     /**
@@ -176,12 +210,28 @@ public class HUDD_TDS {
 
         Checkpoint prev = checkpoints.get(checkpoints.size() - 2);
         Checkpoint curr = checkpoints.get(checkpoints.size() - 1);
-        String direction = globalDriftDetector.updateAndCheck(curr.getGlobalDistance());
-        if (direction != null) {
-            double diff = Math.abs(curr.getGlobalDistance() - prev.getGlobalDistance());
-            return String.format("GLOBAL DRIFT (%s) [Δ=%.4f]", direction, diff);
+        DriftResult result = Objects.requireNonNull(
+                globalDriftDetector.updateAndCheck(
+                        curr.getGlobalDistance(), prev.getTid(), curr.getTid()),
+                "globalDriftDetector returned null");
+        if (result.isDetected()) {
+            return String.format("GLOBAL DRIFT (%s) [Δ=%.4f]",
+                    result.getDirection(),
+                    Math.abs(curr.getGlobalDistance() - prev.getGlobalDistance()));
         }
         return null;
+    }
+
+    public DriftResult checkGlobalDriftResult() {
+        if (checkpoints.size() < 2) {
+            return DriftResult.noDrift(-1, -1);
+        }
+        Checkpoint previous = checkpoints.get(checkpoints.size() - 2);
+        Checkpoint current = checkpoints.get(checkpoints.size() - 1);
+        return Objects.requireNonNull(
+                globalDriftDetector.updateAndCheck(
+                        current.getGlobalDistance(), previous.getTid(), current.getTid()),
+                "globalDriftDetector returned null");
     }
 
     /**
@@ -194,10 +244,28 @@ public class HUDD_TDS {
             return null;
         }
 
-        String driftItemset = localDriftDetector.detect(checkpoints);
-        if (driftItemset != null) {
-            return "LOCAL DRIFT (" + driftItemset + ")";
+        Checkpoint previous = checkpoints.get(checkpoints.size() - 2);
+        Checkpoint current = checkpoints.get(checkpoints.size() - 1);
+        DriftResult result = Objects.requireNonNull(
+                localDriftDetector.detect(previous, current),
+                "localDriftDetector returned null");
+        if (result.isDetected()) {
+            if (result.getAffectedItemsets().isEmpty()) {
+                throw new IllegalStateException("Detected local drift must identify an affected itemset");
+            }
+            return "LOCAL DRIFT (" + result.getAffectedItemsets().get(0) + ")";
         }
         return null;
+    }
+
+    public DriftResult checkLocalDriftResult() {
+        if (checkpoints.size() < 2) {
+            return DriftResult.noDrift(-1, -1);
+        }
+        return Objects.requireNonNull(
+                localDriftDetector.detect(
+                        checkpoints.get(checkpoints.size() - 2),
+                        checkpoints.get(checkpoints.size() - 1)),
+                "localDriftDetector returned null");
     }
 }

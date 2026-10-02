@@ -1,0 +1,59 @@
+HUDD-TDS — bounded paired-dataset experiment
+Recorded: 2026-10-02
+
+Command: java -cp out test.DriftPairBenchmark
+Result: PASS (exit code 0).
+
+The runner completed both configured 2,000-transaction streams:
+
+| Pair | Phase 1 | Phase 2 | Global drift detections | Local drift detections |
+|---|---|---|---:|---:|
+| Chess / NewChess | 1,000 | 1,000 | 18 | 19 |
+| Mushrooms / NewMushroom | 1,000 | 1,000 | 18 | 19 |
+
+Runner configuration: window=300, checkpoint interval=100, minutil=2,500,000,
+alpha=0.05. These are functional drift-regression results, not a performance
+benchmark; elapsed time and memory were not collected.
+
+## Full benchmark run (current working tree)
+
+Recorded: 2026-10-02. Command: `java -cp out test.FullBenchmarkSuite`.
+Result: PASS (exit code 0); all nine configured datasets completed.
+Detailed log: `logs/benchmark_2026-10-02_10-12-52.log`.
+
+| Dataset | Transactions | Runtime (ms) | RAM (MB) | Checkpoints | Final HUI | Global drift | Local drift |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Chess | 3,196 | 7,091 | 84.2 | 10 | 5,636 | 8 | 9 |
+| NewChess | 3,196 | 6,576 | 165.5 | 10 | 5,595 | 8 | 9 |
+| Mushrooms | 8,416 | 4,061 | 59.4 | 16 | 1,398 | 13 | 15 |
+| NewMushroom | 8,416 | 4,023 | 120.7 | 16 | 938 | 14 | 15 |
+| Connects | 10,000 | 114,705 | 143.1 | 10 | 6,933 | 8 | 9 |
+| NewConnects | 10,000 | 130,221 | 116.4 | 10 | 8,719 | 8 | 9 |
+| Retail | 10,000 | 17,330 | 63.0 | 10 | 1,346 | 8 | 9 |
+| Accidents | 10,000 | 96,817 | 69.4 | 5 | 2 | 2 | 3 |
+| Chainstore | 20,000 | 24,218 | 44.5 | 4 | 1,345 | 2 | 3 |
+
+Compared with the historical table below, transaction counts, checkpoints,
+final HUI counts, and global/local drift counts match for all nine datasets.
+Runtime and RAM differ; these are environment-dependent measurements, not
+regression thresholds. The Chainstore run above is the project's configured
+20,000-transaction benchmark and does not reproduce the paper's 1,112,949
+transactions or its 40,000/50,000 window experiment.
+
+The full benchmark's configured parameters and input limits are defined in
+`test/FullBenchmarkSuite.java`; the run does not use the paper-specific
+Chainstore configuration discussed separately.
+
+Historical log: logs/benchmark_2026-09-26_20-23-24.log
+
+| Dataset | Transactions | Runtime (ms) | RAM (MB) | Checkpoints | Final HUI | Global drift | Local drift |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Chess | 3,196 | 13,244 | 147.6 | 10 | 5,636 | 8 | 9 |
+| NewChess | 3,196 | 11,421 | 154.1 | 10 | 5,595 | 8 | 9 |
+| Mushrooms | 8,416 | 6,641 | 99.7 | 16 | 1,398 | 13 | 15 |
+| NewMushroom | 8,416 | 7,926 | 72.5 | 16 | 938 | 14 | 15 |
+| Connects | 10,000 | 215,952 | 102.1 | 10 | 6,933 | 8 | 9 |
+| NewConnects | 10,000 | 132,519 | 164.6 | 10 | 8,719 | 8 | 9 |
+| Retail | 10,000 | 10,694 | 54.4 | 10 | 1,346 | 8 | 9 |
+| Accidents | 10,000 | 119,713 | 105.8 | 5 | 2 | 2 | 3 |
+| Chainstore | 20,000 | 23,576 | 31.1 | 4 | 1,345 | 2 | 3 |

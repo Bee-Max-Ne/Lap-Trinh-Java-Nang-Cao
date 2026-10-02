@@ -21,6 +21,7 @@ public class DriftResult {
     private final double statistic;
     private final double threshold;
     private final String description;
+    private final String direction;
     private final List<String> affectedItemsets;
 
     public DriftResult(boolean detected,
@@ -31,6 +32,19 @@ public class DriftResult {
                        double threshold,
                        String description,
                        List<String> affectedItemsets) {
+        this(detected, type, oldCheckpointTid, newCheckpointTid, statistic, threshold,
+                description, null, affectedItemsets);
+    }
+
+    public DriftResult(boolean detected,
+                       DriftType type,
+                       int oldCheckpointTid,
+                       int newCheckpointTid,
+                       double statistic,
+                       double threshold,
+                       String description,
+                       String direction,
+                       List<String> affectedItemsets) {
         this.detected = detected;
         this.type = type;
         this.oldCheckpointTid = oldCheckpointTid;
@@ -38,6 +52,7 @@ public class DriftResult {
         this.statistic = statistic;
         this.threshold = threshold;
         this.description = description;
+        this.direction = direction;
         this.affectedItemsets = (affectedItemsets != null)
                 ? new ArrayList<>(affectedItemsets)
                 : Collections.emptyList();
@@ -45,6 +60,24 @@ public class DriftResult {
 
     public static DriftResult noDrift(int oldTid, int newTid) {
         return new DriftResult(false, DriftType.NONE, oldTid, newTid, 0.0, 0.0, "Ổn định (Không drift)", Collections.emptyList());
+    }
+
+    public static DriftResult globalDrift(int oldTid,
+                                          int newTid,
+                                          double statistic,
+                                          double threshold,
+                                          String direction) {
+        return new DriftResult(true, DriftType.GLOBAL_DRIFT, oldTid, newTid,
+                statistic, threshold, direction, direction, Collections.emptyList());
+    }
+
+    public static DriftResult localDrift(int oldTid,
+                                         int newTid,
+                                         double statistic,
+                                         double threshold,
+                                         String itemset) {
+        return new DriftResult(true, DriftType.LOCAL_DRIFT, oldTid, newTid,
+                statistic, threshold, itemset, null, Collections.singletonList(itemset));
     }
 
     public boolean isDetected() {
@@ -73,6 +106,10 @@ public class DriftResult {
 
     public String getDescription() {
         return description;
+    }
+
+    public String getDirection() {
+        return direction;
     }
 
     public List<String> getAffectedItemsets() {

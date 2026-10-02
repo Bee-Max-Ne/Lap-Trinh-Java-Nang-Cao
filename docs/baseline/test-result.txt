@@ -1,0 +1,76 @@
+HUDD-TDS — regression verification after application-boundary changes
+Recorded: 2026-10-02 (full validation run, 10:12–10:19 +07:00)
+
+Clean compilation of all 36 Java files under `src` and `test` with
+`javac -encoding UTF-8` passed. Each runner below was executed against those
+freshly compiled classes; every process returned exit code 0.
+
+| Check | Command | Result |
+|---|---|---|
+| Strategy injection and legacy API | `java -cp out test.StrategyInjectionTest` | PASS |
+| Simulation Observer events | `java -cp out test.SimulationServiceEventTest` | PASS |
+| Dataset application boundary | `java -cp out test.DatasetServiceTest` | PASS |
+| Data layer | `java -cp out test.DataLayerTest` | PASS |
+| Formula/parser/loader validation | `java -cp out test.FinalValidationSuite` | PASS |
+| Running example | `java -cp out test.BaselineRunner` | PASS |
+| Chess end-to-end | `java -cp out test.EndToEndChessRunner` | PASS |
+| Paired drift experiment | `java -cp out test.DriftPairBenchmark` | PASS; Chess/NewChess and Mushrooms/NewMushroom, 1,000 transactions per phase |
+| CLI demo | `java -cp out huddtds.demo.DemoRunner` | PASS |
+| Full benchmark | `java -cp out test.FullBenchmarkSuite` | PASS; all 9 configured datasets completed |
+| Interactive Swing lifecycle and exports | Manual GUI check | NOT VERIFIED |
+
+The available regression runners are standalone main programs, not JUnit tests.
+Build and runner process exit codes were checked. `DataLayerTest` validated up
+to 1,000 transactions for each discovered dataset. BaselineRunner output
+matched the recorded running-example results; `EndToEndChessRunner` output
+matched the prior selected-output comparison to revision 7cddf2f documented in
+running-example.txt. FullBenchmarkSuite functional counts were compared with
+the historical benchmark table; counts match, while runtime and memory vary
+and are not treated as stable thresholds.
+
+Full benchmark log:
+`logs/benchmark_2026-10-02_10-12-52.log`. See benchmark-small.txt for the
+measured summary and comparison.
+
+This is not a claim that every GUI interaction has been exercised. In particular,
+RUN/PAUSE/RESUME/STOP/RESET, chart rendering, filters, and CSV/TXT export still
+need a manual or desktop-automation check.
+
+## Follow-up: GUI input thread-safety
+
+After source review found that the background worker read the Running Example
+text area, `onRunSimulation()` now snapshots its text on the EDT and passes the
+immutable `String` to `SimulationWorker`. A clean compile of all 36 Java files
+and the StrategyInjectionTest, SimulationServiceEventTest, DatasetServiceTest,
+DataLayerTest, FinalValidationSuite, BaselineRunner, EndToEndChessRunner, and
+DriftPairBenchmark runners all passed after this change.
+
+The Swing application was not launched interactively in this follow-up. The
+fix is source-reviewed and compile-verified; desktop lifecycle and rendering
+remain unverified. FullBenchmarkSuite was not rerun because this GUI-only change
+does not affect the algorithm or benchmark path.
+
+## Final GUI smoke-test follow-up
+
+Recorded: 2026-10-02.
+
+The GUI was launched with `java -cp out huddtds.demo.HUDD_TDS_GUI`; its Swing
+window opened and reported as responsive. Visual inspection showed transaction
+progress, process log output, metric cards, and chart rendering during/completing
+a Running Example execution. A bounded run configured with `Max Tx = 20`
+reported 21 processed transactions, exposing an off-by-one in the GUI limit
+check. The check now stops before incrementing the TID/processed count when the
+configured limit has already been reached.
+
+After the fix, all 36 Java source files were recompiled into `out` and
+FinalValidationSuite, StrategyInjectionTest, SimulationServiceEventTest,
+DatasetServiceTest, DataLayerTest, BaselineRunner, and EndToEndChessRunner all
+returned exit code 0. The running-example and selected Chess outputs matched
+their recorded baseline comparisons. FullBenchmarkSuite was not rerun because
+the change only affects the GUI transaction-limit counter.
+
+The complete interactive lifecycle was not verified: PAUSE/RESUME/STOP/RESET,
+filter/search behavior, and export were not reliably exercised in this agent
+session. The GUI smoke-test status therefore remains NOT TESTED as a complete
+end-to-end desktop check; the visual observations above are partial evidence
+only, not a PASS claim.

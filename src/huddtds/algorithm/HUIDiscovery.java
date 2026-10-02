@@ -1,5 +1,6 @@
 package huddtds.algorithm;
 
+import huddtds.algorithm.mining.HUIItemsetMiner;
 import huddtds.math.UtilityMetrics;
 import huddtds.model.Element;
 import huddtds.model.HighUtilityItemset;
@@ -13,7 +14,7 @@ import java.util.function.Consumer;
  * Tích hợp kỹ thuật tỉa cận trên TWU (Transaction-Weighted Downward Closure)
  * và hỗ trợ cả dữ liệu thực tế (utility-based) lẫn dữ liệu mô phỏng (quantity-based).
  */
-public class HUIDiscovery {
+public class HUIDiscovery implements HUIItemsetMiner {
     private final Map<String, Double> externalUtilities;
     private final double minutil;
     private final int windowSize;
@@ -30,6 +31,7 @@ public class HUIDiscovery {
         this.traceListener = null;
     }
 
+    @Override
     public void setTraceListener(Consumer<String> traceListener) {
         this.traceListener = traceListener;
     }
@@ -60,6 +62,7 @@ public class HUIDiscovery {
      * @param currentTid TID hiện tại
      * @return danh sách HUI trong cửa sổ
      */
+    @Override
     public List<HighUtilityItemset> discover(List<Transaction> memory, int currentTid) {
         List<Transaction> window = buildWindow(memory, currentTid);
         trace(String.format("[HUI][TID=%d] Built window: %d transaction(s), expected range (%d, %d]",

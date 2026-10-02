@@ -1,0 +1,28 @@
+HUDD-TDS — running example regression
+Recorded: 2026-10-02
+
+Input: data/running_example.txt (four transactions).
+Command: java -cp out test.BaselineRunner
+Current working tree result: PASS (exit code 0).
+
+Observed checkpoint summary:
+
+| TID | HUI count | Global drift |
+|---:|---:|---|
+| 1 | 0 | None |
+| 2 | 8 | None |
+| 3 | 5 | GLOBAL DRIFT (TĂNG), Δ=2.8287 |
+| 4 | 3 | GLOBAL DRIFT (TĂNG), Δ=1.6098 |
+
+Local drift was None at all four checkpoints. The runner prints per-HUI utility
+and D_mo values as well.
+
+Regression comparison:
+The output fields used for comparison (checkpoint TIDs, HUI counts and entries,
+utilities/D_mo, DIS_HS, global drift and local drift) matched the separately
+compiled original revision 7cddf2f exactly for this running example. This
+comparison was a direct execution comparison, not an inferred expected output.
+
+Chess end-to-end comparison was also performed separately: 119 selected
+checkpoint/HUI/drift output lines matched revision 7cddf2f exactly. See
+test-result.txt for current-run status.

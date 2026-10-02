@@ -1,6 +1,8 @@
 package huddtds.algorithm;
 
+import huddtds.algorithm.drift.GlobalDriftStrategy;
 import huddtds.math.UtilityMetrics;
+import huddtds.model.DriftResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +31,7 @@ import java.util.function.Consumer;
  *      * ln(2/alpha)
  * )
  */
-public class GlobalDriftDetector {
+public class GlobalDriftDetector implements GlobalDriftStrategy {
 
     private final double alpha;
     private final double range;
@@ -52,7 +54,7 @@ public class GlobalDriftDetector {
      * Last detected trend.
      */
     private String lastDirection;
-        private Consumer<String> traceListener;
+    private Consumer<String> traceListener;
 
     public GlobalDriftDetector(
             double alpha,
@@ -66,20 +68,27 @@ public class GlobalDriftDetector {
 
         this.cutPoint = 0;
         this.lastDirection = null;
-                this.traceListener = null;
+        this.traceListener = null;
     }
 
-        public void setTraceListener(Consumer<String> traceListener) {
-                this.traceListener = traceListener;
-        }
+    @Override
+    public void setTraceListener(Consumer<String> traceListener) {
+        this.traceListener = traceListener;
+    }
 
     /**
-     * Add one checkpoint distance and
-     * check global drift.
+     * Add one checkpoint distance and check global drift.
      */
-    public String updateAndCheck(
-            double observation) {
+    public String updateAndCheck(double observation) {
+        DriftResult result = updateAndCheck(observation, -1, -1);
+        return result.isDetected() ? result.getDirection() : null;
+    }
 
+    @Override
+    public DriftResult updateAndCheck(
+            double observation,
+            int oldCheckpointTid,
+            int newCheckpointTid) {
         distances.add(observation);
 
         lastDirection = null;
@@ -91,7 +100,7 @@ public class GlobalDriftDetector {
          * to create two groups.
          */
         if (n < 2) {
-            return null;
+            return DriftResult.noDrift(oldCheckpointTid, newCheckpointTid);
         }
 
         /*
@@ -226,23 +235,22 @@ public class GlobalDriftDetector {
                 );
 
         String diagnostic = String.format(
-                        "[GLOBAL CHECK] n=%d, m=%d, Udrift=%.6f, V=%.6f, " +
-                                "epsilonU=%.6f, epsilonV=%.6f, " +
-                                "epsilon=%.6f, |U-V|=%.6f",
-                        n,
-                        m,
-                        testU,
-                        testV,
-                        epsilonU,
-                        epsilonV,
-                        epsilon,
-                        difference
-                                );
-                if (traceListener != null) {
-                        traceListener.accept(diagnostic);
-                } else {
-                        System.out.println(diagnostic);
-                }
+                "[GLOBAL CHECK] n=%d, m=%d, Udrift=%.6f, V=%.6f, " +
+                        "epsilonU=%.6f, epsilonV=%.6f, " +
+                        "epsilon=%.6f, |U-V|=%.6f",
+                n,
+                m,
+                testU,
+                testV,
+                epsilonU,
+                epsilonV,
+                epsilon,
+                difference);
+        if (traceListener != null) {
+            traceListener.accept(diagnostic);
+        } else {
+            System.out.println(diagnostic);
+        }
 
         if (difference >= epsilon) {
 
@@ -267,7 +275,12 @@ public class GlobalDriftDetector {
              */
             cutPoint = n;
 
-            return lastDirection;
+            return DriftResult.globalDrift(
+                    oldCheckpointTid,
+                    newCheckpointTid,
+                    difference,
+                    epsilon,
+                    lastDirection);
         }
 
         /*
@@ -284,7 +297,7 @@ public class GlobalDriftDetector {
             cutPoint = n;
         }
 
-        return null;
+        return DriftResult.noDrift(oldCheckpointTid, newCheckpointTid);
     }
 
     /**

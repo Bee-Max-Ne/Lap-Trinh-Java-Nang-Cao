@@ -1,7 +1,9 @@
 package huddtds.algorithm;
 
+import huddtds.algorithm.drift.LocalDriftStrategy;
 import huddtds.math.UtilityMetrics;
 import huddtds.model.Checkpoint;
+import huddtds.model.DriftResult;
 import huddtds.model.HighUtilityItemset;
 
 import java.util.HashSet;
@@ -10,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class LocalDriftDetector {
+public class LocalDriftDetector implements LocalDriftStrategy {
 
     private final double alpha;
     private final int sampleSize;
@@ -26,6 +28,7 @@ public class LocalDriftDetector {
         this.traceListener = null;
     }
 
+    @Override
     public void setTraceListener(Consumer<String> traceListener) {
         this.traceListener = traceListener;
     }
@@ -45,11 +48,17 @@ public class LocalDriftDetector {
 
         Checkpoint previous = checkpoints.get(checkpoints.size() - 2);
         Checkpoint current = checkpoints.get(checkpoints.size() - 1);
+        DriftResult result = detect(previous, current);
+        return result.isDetected() ? result.getAffectedItemsets().get(0) : null;
+    }
+
+    @Override
+    public DriftResult detect(Checkpoint previous, Checkpoint current) {
         Set<String> candidateItemsets = collectItemsets(previous, current);
         if (candidateItemsets.isEmpty()) {
             trace(String.format("[LOCAL CHECK] T%d -> T%d; no itemsets to compare",
                 previous.getTid(), current.getTid()));
-            return null;
+            return DriftResult.noDrift(previous.getTid(), current.getTid());
         }
 
         int n1 = sampleSize;
@@ -70,25 +79,30 @@ public class LocalDriftDetector {
             double difference = Math.abs(x1 - x2);
 
             if (testedItemsets < 25) {
-            trace(String.format(
-                "[LOCAL CHECK] T%d -> T%d, X=%s, n1=%d, n2=%d, X1=%.6f, X2=%.6f, " +
-                    "variance=%.6f, alpha'=%.8f, epsilon=%.6f, |X1-X2|=%.6f",
-                previous.getTid(), current.getTid(), itemsetKey, n1, n2, x1, x2,
-                variance, adjustedAlpha, epsilon, difference));
+                trace(String.format(
+                        "[LOCAL CHECK] T%d -> T%d, X=%s, n1=%d, n2=%d, X1=%.6f, X2=%.6f, " +
+                                "variance=%.6f, alpha'=%.8f, epsilon=%.6f, |X1-X2|=%.6f",
+                        previous.getTid(), current.getTid(), itemsetKey, n1, n2, x1, x2,
+                        variance, adjustedAlpha, epsilon, difference));
             } else if (testedItemsets == 25) {
-            trace(String.format("[LOCAL CHECK] Suppressing diagnostics for %d additional itemset(s)",
-                hypothesisCount - testedItemsets));
+                trace(String.format("[LOCAL CHECK] Suppressing diagnostics for %d additional itemset(s)",
+                        hypothesisCount - testedItemsets));
             }
             testedItemsets++;
 
             if (difference >= epsilon) {
-            trace("[LOCAL DRIFT DETECTED] X=" + itemsetKey);
-            return itemsetKey;
+                trace("[LOCAL DRIFT DETECTED] X=" + itemsetKey);
+                return DriftResult.localDrift(
+                        previous.getTid(),
+                        current.getTid(),
+                        difference,
+                        epsilon,
+                        itemsetKey);
             }
         }
 
-        return null;
-        }
+        return DriftResult.noDrift(previous.getTid(), current.getTid());
+    }
 
     private Set<String> collectItemsets(
             Checkpoint previous,

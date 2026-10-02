@@ -1,0 +1,18 @@
+HUDD-TDS — build verification after application-boundary changes
+Recorded: 2026-10-02
+
+Status: PASS.
+
+Command (PowerShell, from repository root):
+
+$files = Get-ChildItem -Path src,test -Filter *.java -Recurse |
+    ForEach-Object { $_.FullName }
+javac -encoding UTF-8 -d out $files
+if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+
+Result: javac completed successfully; all Java sources under src and test
+compiled with UTF-8. This verifies the current working tree, not a clean
+historical Phase 0 checkout.
+
+The original revision used for behavioral comparison was 7cddf2f. The comparison
+was compiled and executed separately; see running-example.txt and test-result.txt.
