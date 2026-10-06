@@ -74,7 +74,141 @@ Dự án **HUDD-TDS** (*High-Utility Itemset Discovery with Temporal Drift Detec
 
 ---
 
-## 👥 5. KHI ÁP DỤNG FACADE PATTERN SẼ ẢNH HƯỞNG TỚI NHỮNG AI?
+## 📁 5. CHI TIẾT CÁC FILE THAY ĐỔI & VÍ DỤ MÃ NGUỒN (BEFORE vs AFTER)
+
+Khi áp dụng **Facade Pattern**, bộ mã nguồn của dự án thay đổi ở các file cụ thể sau:
+
+### 1️⃣ Tệp tạo mới: [SimulationFacade.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/application/facade/SimulationFacade.java) (Tầng Mặt Tiền)
+Đây là lớp Facade được bổ sung mới hoàn toàn để đóng gói chuỗi xử lý dịch vụ bên dưới:
+
+```java
+public class SimulationFacade {
+    private final DatasetService datasetService;
+
+    public SimulationFacade() {
+        this(new DatasetService());
+    }
+
+    public List<String> getAvailableDatasets() {
+        return datasetService.getDatasetNames();
+    }
+
+    public DatasetService.ValidationSummary validateDataset(String datasetName, File customFile, int maxLines) {
+        return datasetService.validate(datasetName, customFile, maxLines);
+    }
+
+    public SimulationService createSimulationService(...) throws IOException {
+        // Tự động nạp bảng utility và khởi tạo engine HUDD_TDS
+        ...
+    }
+
+    public BufferedReader openTransactionStream(...) throws IOException {
+        // Tự động xử lý chọn luồng đọc từ file đĩa hoặc chuỗi văn bản nhập tay
+        ...
+    }
+}
+```
+
+---
+
+### 2️⃣ Tệp bị thay đổi: [HUDD_TDS_GUI.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/demo/HUDD_TDS_GUI.java) (Tầng Giao Diện)
+
+#### 🔹 Thay đổi 1: Khai báo và Khởi tạo trường quản lý Dữ liệu
+- ❌ **TRƯỚC**:
+  ```java
+  private final DatasetService datasetService;
+  
+  public HUDD_TDS_GUI() {
+      this.datasetService = new DatasetService();
+  }
+  ```
+- ✅ **SAU**:
+  ```java
+  private final SimulationFacade facade; // Đã đổi sang Facade!
+  
+  public HUDD_TDS_GUI() {
+      this.facade = new SimulationFacade();
+  }
+  ```
+
+#### 🔹 Thay đổi 2: Lấy danh mục Dataset lên ComboBox
+- ❌ **TRƯỚC**:
+  ```java
+  List<String> datasetOptions = new ArrayList<>(datasetService.getDatasetNames());
+  ```
+- ✅ **SAU**:
+  ```java
+  List<String> datasetOptions = new ArrayList<>(facade.getAvailableDatasets());
+  ```
+
+#### 🔹 Thay đổi 3: Thực hiện Kiểm định Dataset (Validate)
+- ❌ **TRƯỚC**:
+  ```java
+  DatasetService.ValidationSummary report =
+          datasetService.validate(selected, customTransactionFile, 5000);
+  ```
+- ✅ **SAU**:
+  ```java
+  DatasetService.ValidationSummary report =
+          facade.validateDataset(selected, customTransactionFile, 5000);
+  ```
+
+#### 🔹 Thay đổi 4: Khởi tạo Mô phỏng và Mở Luồng Đọc Giao dịch (Trong Worker)
+- ❌ **TRƯỚC (GUI phải tự tạo và điều khiển nhiều Service rời rạc)**:
+  ```java
+  boolean runningExample = datasetName.contains("Running Example");
+  Map<String, Double> externalUtilities = datasetService.loadInvestmentTable(
+          datasetName, customInvestmentFile, runningExample);
+
+  simulationService = new SimulationService(
+          externalUtilities, minutil, interval, windowSize, alpha, maxPattern);
+
+  BufferedReader reader;
+  if (datasetName.contains("Running Example")) {
+      reader = new BufferedReader(new StringReader(manualInput));
+  } else {
+      reader = datasetService.openTransactionStream(datasetName, customTransactionFile);
+  }
+  totalLinesEstimate = datasetService.estimateTransactionCount(datasetName, customTransactionFile);
+  ```
+- ✅ **SAU (GUI gọi qua Facade cực kỳ ngắn gọn và an toàn)**:
+  ```java
+  // 1. Tạo SimulationService qua Facade
+  simulationService = facade.createSimulationService(
+          datasetName, customTransactionFile, customInvestmentFile,
+          minutil, interval, windowSize, alpha, maxPattern);
+
+  // 2. Mở luồng giao dịch reader qua Facade
+  BufferedReader reader = facade.openTransactionStream(datasetName, customTransactionFile, manualInput);
+  int totalLinesEstimate = facade.estimateTransactionCount(datasetName, customTransactionFile);
+  ```
+
+---
+
+### 3️⃣ Tệp Unit Test tạo mới: [FacadePatternTest.java](file:///f:/Lap-Trinh-Java-Nang-Cao/test/FacadePatternTest.java) (Tầng Kiểm Thử)
+Thêm file kiểm thử tự động độc lập với Swing GUI:
+
+```java
+public class FacadePatternTest {
+    public static void main(String[] args) throws IOException {
+        SimulationFacade facade = new SimulationFacade();
+
+        // Kiểm thử lấy danh sách dataset qua Facade
+        List<String> datasets = facade.getAvailableDatasets();
+        require(datasets != null, "Datasets not null");
+
+        // Kiểm thử tạo SimulationService qua Facade
+        SimulationService simService = facade.createSimulationService("Running Example (Mẫu)", null, null, 15.0, 1, 2, 0.10, 3);
+        require(simService != null, "SimulationService not null");
+
+        System.out.println("FacadePatternTest PASSED ✓");
+    }
+}
+```
+
+---
+
+## 👥 6. KHI ÁP DỤNG FACADE PATTERN SẼ ẢNH HƯỞNG TỚI NHỮNG AI?
 
 Áp dụng Facade Pattern mang lại ảnh hưởng tích cực rõ rệt cho **4 nhóm đối tượng**:
 
@@ -113,11 +247,11 @@ mindmap
 
 ### 4️⃣ Đối với Giáo viên / Hội đồng bảo vệ đồ án (Reviewer / Evaluator)
 - **Tác động**: Thấy được sự phân tầng kiến trúc chuyên nghiệp trong dự án.
-- **Lợi ích**: Chứng minh sinh viên/lập trình viên không chỉ biết viết code chạy được, mà còn **nắm vững tư duy Kiến trúc Phần mềm Doanh nghiệp (Enterprise Clean Architecture)**.
+- **Lợi ích**: Chứng minh sinh viên/lập trình viên không chỉ biết viết code chạy được, mà còn **nắm vững tư tư duy Kiến trúc Phần mềm Doanh nghiệp (Enterprise Clean Architecture)**.
 
 ---
 
-## 📄 6. TỔNG KẾT FILE ĐÃ THỰC THI TRONG BỘ MÃ NGUỒN
+## 📄 7. TỔNG KẾT FILE ĐÃ THỰC THI TRONG BỘ MÃ NGUỒN
 
 - **File Facade chính**: [SimulationFacade.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/application/facade/SimulationFacade.java)
 - **File Giao diện đã Refactor**: [HUDD_TDS_GUI.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/demo/HUDD_TDS_GUI.java)
