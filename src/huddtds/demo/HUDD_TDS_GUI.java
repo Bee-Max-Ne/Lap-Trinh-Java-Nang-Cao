@@ -2,6 +2,7 @@ package huddtds.demo;
 
 import huddtds.application.SimulationService;
 import huddtds.application.DatasetService;
+import huddtds.application.facade.SimulationFacade;
 import huddtds.application.event.EventType;
 import huddtds.application.event.SimulationEvent;
 import huddtds.model.Checkpoint;
@@ -42,8 +43,8 @@ import java.util.List;
 public class HUDD_TDS_GUI extends JFrame {
     private static final long serialVersionUID = 1L;
 
-    // Quản lý Dữ liệu
-    private final DatasetService datasetService;
+    // Quản lý Dữ liệu qua Facade Pattern
+    private final SimulationFacade facade;
     private File customTransactionFile = null;
     private File customInvestmentFile = null;
 
@@ -111,7 +112,7 @@ public class HUDD_TDS_GUI extends JFrame {
 
     public HUDD_TDS_GUI() {
         super("HUDD-TDS - Hệ thống giám sát trôi dạt độ lợi (Utility Drift Detection)");
-        this.datasetService = new DatasetService();
+        this.facade = new SimulationFacade();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1280, 820);
@@ -142,7 +143,7 @@ public class HUDD_TDS_GUI extends JFrame {
         configPanel.add(new JLabel("Bộ dữ liệu:"), gbc);
 
         gbc.gridx = 1;
-        List<String> datasetOptions = new ArrayList<>(datasetService.getDatasetNames());
+        List<String> datasetOptions = new ArrayList<>(facade.getAvailableDatasets());
         datasetOptions.add(0, "Running Example (Mẫu)");
         datasetOptions.add("[+ Duyệt tệp ngoài...]");
         cbDatasets = new JComboBox<>(datasetOptions.toArray(String[]::new));
@@ -594,7 +595,7 @@ public class HUDD_TDS_GUI extends JFrame {
         }
 
         DatasetService.ValidationSummary report =
-                datasetService.validate(selected, customTransactionFile, 5000);
+                facade.validateDataset(selected, customTransactionFile, 5000);
 
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("KẾT QUẢ KIỂM ĐỊNH DATASET: %s%n%n", report.datasetName));
@@ -928,13 +929,9 @@ public class HUDD_TDS_GUI extends JFrame {
                     + ", maxPattern=" + maxPattern + ", maxTx=" + maxTxLimit
                     + ", traceEachTransaction=" + traceEachTransaction);
             try {
-            boolean runningExample = datasetName.contains("Running Example");
-            Map<String, Double> externalUtilities = datasetService.loadInvestmentTable(
-                    datasetName, customInvestmentFile, runningExample);
-            trace("[DATA] Đã nạp bảng utility; số item=" + externalUtilities.size());
-
-            simulationService = new SimulationService(
-                    externalUtilities, minutil, interval, windowSize, alpha, maxPattern);
+            simulationService = facade.createSimulationService(
+                    datasetName, customTransactionFile, customInvestmentFile,
+                    minutil, interval, windowSize, alpha, maxPattern);
             simulationService.addListener(event -> {
                 publish(SimulationUpdate.event(event));
                 if (event.getType() == EventType.CHECKPOINT_CREATED) {
@@ -946,18 +943,11 @@ public class HUDD_TDS_GUI extends JFrame {
                 }
             });
             simulationService.setTraceListener(this::trace, traceEachTransaction);
-            trace("[ENGINE] Đã khởi tạo SimulationService và gắn trace listener.");
+            trace("[ENGINE] Đã khởi tạo SimulationService qua SimulationFacade.");
 
             // 2. Mở luồng giao dịch
-            BufferedReader reader;
-            int totalLinesEstimate;
-            if (datasetName.contains("Running Example")) {
-                reader = new BufferedReader(new StringReader(manualInput));
-            } else {
-                reader = datasetService.openTransactionStream(datasetName, customTransactionFile);
-            }
-            totalLinesEstimate = datasetService.estimateTransactionCount(
-                    datasetName, customTransactionFile);
+            BufferedReader reader = facade.openTransactionStream(datasetName, customTransactionFile, manualInput);
+            int totalLinesEstimate = facade.estimateTransactionCount(datasetName, customTransactionFile);
             trace("[DATA] Đã mở transaction stream; ước tính số dòng=" + totalLinesEstimate);
 
             try (reader) {
