@@ -16,10 +16,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Facade Pattern: Unified, simplified entry point for managing dataset operations,
- * simulation lifecycle, transaction stream parsing, and report exports.
+ * Facade Pattern: Điểm truy cập "một cửa" đóng gói toàn bộ các dịch vụ dữ liệu,
+ * khởi tạo thuật toán mô phỏng HUDD-TDS, đọc luồng giao dịch và xuất báo cáo.
  *
- * Decouples presentation layers (Swing UI, CLI) from complex underlying subsystems.
+ * Giúp tách rời tầng giao diện (Swing GUI, CLI, Web) khỏi sự phức tạp của các dịch vụ bên dưới.
  */
 public class SimulationFacade {
     private final DatasetService datasetService;
@@ -33,14 +33,14 @@ public class SimulationFacade {
     }
 
     /**
-     * Gets available dataset options discovered in the repository.
+     * Lấy danh mục các dataset sẵn có được phát hiện trong hệ thống.
      */
     public List<String> getAvailableDatasets() {
         return datasetService.getDatasetNames();
     }
 
     /**
-     * Validates a selected dataset structure and integrity.
+     * Thực hiện kiểm định cấu trúc và độ hợp lệ của dataset đã chọn.
      */
     public DatasetService.ValidationSummary validateDataset(
             String datasetName, File customTransactionFile, int maxCheckLines) {
@@ -48,7 +48,7 @@ public class SimulationFacade {
     }
 
     /**
-     * Creates and initializes a complete HUDD-TDS simulation service.
+     * Khởi tạo đối tượng SimulationService hoàn chỉnh bằng cách sử dụng HUDD_TDS.Builder.
      */
     public SimulationService createSimulationService(
             String datasetName,
@@ -64,6 +64,7 @@ public class SimulationFacade {
         Map<String, Double> externalUtilities = datasetService.loadInvestmentTable(
                 datasetName, customInvestmentFile, isRunningExample);
 
+        // Khởi tạo thuật toán lõi HUDD_TDS thông qua Builder Pattern
         HUDD_TDS engine = new HUDD_TDS.Builder()
                 .withExternalUtilities(externalUtilities)
                 .withMinutil(minutil)
@@ -77,7 +78,7 @@ public class SimulationFacade {
     }
 
     /**
-     * Opens a transaction reader stream from dataset name, file, or manual text input.
+     * Mở luồng đọc BufferedReader cho giao dịch (từ tệp đĩa hoặc chuỗi văn bản nhập tay).
      */
     public BufferedReader openTransactionStream(
             String datasetName,
@@ -91,7 +92,7 @@ public class SimulationFacade {
     }
 
     /**
-     * Estimates total transactions in the dataset for progress tracking.
+     * Ước tính tổng số dòng giao dịch trong bộ dữ liệu để hiển thị thanh tiến trình.
      */
     public int estimateTransactionCount(String datasetName, File customTransactionFile) {
         return datasetService.estimateTransactionCount(datasetName, customTransactionFile);

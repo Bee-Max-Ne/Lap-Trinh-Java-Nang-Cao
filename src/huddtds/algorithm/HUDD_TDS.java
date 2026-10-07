@@ -118,70 +118,91 @@ public class HUDD_TDS {
     }
 
     /**
-     * Builder Pattern for clean, step-by-step HUDD-TDS configuration.
+     * Mẫu khởi tạo Builder Pattern cho bộ điều phối HUDD-TDS.
+     * Cho phép cấu hình các siêu tham số toán học và tiêm các chiến lược (Strategy)
+     * một cách linh hoạt, an toàn và dễ đọc.
      */
     public static class Builder {
+        /** Bảng giá trị độ lợi ngoại vi của các mặt hàng */
         private Map<String, Double> externalUtilities = java.util.Collections.emptyMap();
+        /** Ngưỡng độ lợi tối thiểu để xác định HUI */
         private double minutil = 10.0;
+        /** Chu kỳ đánh giá checkpoint (số giao dịch) */
         private int interval = 1;
+        /** Kích thước cửa sổ trượt lưu trữ giao dịch */
         private int windowSize = 2;
+        /** Mức ý nghĩa thống kê Alpha cho kiểm định Hoeffding/Bonferroni */
         private double alphaConfidence = 0.05;
+        /** Độ dài tập mục tối đa để lọc (0 là không giới hạn) */
         private int maxItemsetSize = 0;
+        /** Chiến lược khai phá tập mục độ lợi cao (HUI Miner Strategy) */
         private HUIItemsetMiner huiMiner;
+        /** Chiến lược phát hiện trôi dạt toàn cục (Global Drift Strategy) */
         private GlobalDriftStrategy globalDriftDetector;
+        /** Chiến lược phát hiện trôi dạt cục bộ (Local Drift Strategy) */
         private LocalDriftStrategy localDriftDetector;
 
+        /** Thiết lập bảng giá trị độ lợi ngoại vi */
         public Builder withExternalUtilities(Map<String, Double> externalUtilities) {
             this.externalUtilities = externalUtilities != null ? externalUtilities : java.util.Collections.emptyMap();
             return this;
         }
 
+        /** Thiết lập ngưỡng độ lợi tối thiểu (MinUtil) - Phải >= 0 */
         public Builder withMinutil(double minutil) {
-            if (minutil < 0) throw new IllegalArgumentException("minutil must be non-negative");
+            if (minutil < 0) throw new IllegalArgumentException("Ngưỡng minutil không được âm: " + minutil);
             this.minutil = minutil;
             return this;
         }
 
+        /** Thiết lập chu kỳ checkpoint (Interval) - Phải > 0 */
         public Builder withInterval(int interval) {
-            if (interval <= 0) throw new IllegalArgumentException("interval must be positive");
+            if (interval <= 0) throw new IllegalArgumentException("Chu kỳ interval phải lớn hơn 0: " + interval);
             this.interval = interval;
             return this;
         }
 
+        /** Thiết lập kích thước cửa sổ trượt (WindowSize) - Phải > 0 */
         public Builder withWindowSize(int windowSize) {
-            if (windowSize <= 0) throw new IllegalArgumentException("windowSize must be positive");
+            if (windowSize <= 0) throw new IllegalArgumentException("Kích thước windowSize phải lớn hơn 0: " + windowSize);
             this.windowSize = windowSize;
             return this;
         }
 
+        /** Thiết lập mức ý nghĩa Alpha (0 < alphaConfidence <= 1) */
         public Builder withAlphaConfidence(double alphaConfidence) {
             if (alphaConfidence <= 0 || alphaConfidence > 1) {
-                throw new IllegalArgumentException("alphaConfidence must be in (0, 1]");
+                throw new IllegalArgumentException("Ngưỡng alphaConfidence phải trong khoảng (0, 1]: " + alphaConfidence);
             }
             this.alphaConfidence = alphaConfidence;
             return this;
         }
 
+        /** Thiết lập độ dài tập mục tối đa */
         public Builder withMaxItemsetSize(int maxItemsetSize) {
             this.maxItemsetSize = maxItemsetSize;
             return this;
         }
 
+        /** Tiêm chiến lược khai phá HUI tùy chỉnh (Strategy Pattern) */
         public Builder withMiner(HUIItemsetMiner huiMiner) {
             this.huiMiner = huiMiner;
             return this;
         }
 
+        /** Tiêm chiến lược phát hiện Drift toàn cục tùy chỉnh (Strategy Pattern) */
         public Builder withGlobalStrategy(GlobalDriftStrategy globalDriftDetector) {
             this.globalDriftDetector = globalDriftDetector;
             return this;
         }
 
+        /** Tiêm chiến lược phát hiện Drift cục bộ tùy chỉnh (Strategy Pattern) */
         public Builder withLocalStrategy(LocalDriftStrategy localDriftDetector) {
             this.localDriftDetector = localDriftDetector;
             return this;
         }
 
+        /** Khởi tạo đối tượng HUDD_TDS hoàn chỉnh sau khi kiểm tra hợp lệ */
         public HUDD_TDS build() {
             return new HUDD_TDS(this);
         }

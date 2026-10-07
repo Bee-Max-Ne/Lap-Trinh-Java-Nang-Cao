@@ -72,88 +72,116 @@ public final class SimulationEvent {
     }
 
     /**
-     * Builder Pattern for clean SimulationEvent construction without long positional parameter lists.
+     * Mẫu khởi tạo Builder Pattern cho lớp SimulationEvent.
+     * Giúp xây dựng các đối tượng sự kiện mô phỏng mà không cần truyền 13 tham số rời rạc.
      */
     public static class Builder {
+        /** Loại sự kiện mô phỏng (CHECKPOINT_CREATED, GLOBAL_DRIFT, LOCAL_DRIFT,...) */
         private EventType type;
+        /** Mã ID giao dịch hiện tại */
         private int tid;
+        /** Đối tượng giao dịch hiện tại */
         private Transaction transaction;
+        /** Đối tượng checkpoint chứa kết quả HUI */
         private Checkpoint checkpoint;
+        /** Kết quả phát hiện trôi dạt tổng quát */
         private DriftResult driftResult;
+        /** Kết quả phát hiện trôi dạt toàn cục */
         private DriftResult globalDrift;
+        /** Kết quả phát hiện trôi dạt cục bộ */
         private DriftResult localDrift;
+        /** Danh sách chuỗi biểu diễn vector tập mục độ lợi */
         private List<String> itemsetVectors;
+        /** Ước tính tổng số giao dịch cần xử lý */
         private int totalEstimate;
+        /** Tốc độ xử lý luồng (giao dịch / giây) */
         private int speedTxPerSec;
+        /** Thông điệp mô tả sự kiện */
         private String message;
+        /** Chuỗi thông điệp trôi dạt toàn cục */
         private String globalDriftMessage;
+        /** Chuỗi thông điệp trôi dạt cục bộ */
         private String localDriftMessage;
 
+        /** Thiết lập loại sự kiện */
         public Builder withType(EventType type) {
             this.type = type;
             return this;
         }
 
+        /** Thiết lập mã giao dịch TID */
         public Builder withTid(int tid) {
             this.tid = tid;
             return this;
         }
 
+        /** Thiết lập đối tượng giao dịch */
         public Builder withTransaction(Transaction transaction) {
             this.transaction = transaction;
             return this;
         }
 
+        /** Thiết lập đối tượng checkpoint kết quả */
         public Builder withCheckpoint(Checkpoint checkpoint) {
             this.checkpoint = checkpoint;
             return this;
         }
 
+        /** Thiết lập kết quả drift tổng quát */
         public Builder withDriftResult(DriftResult driftResult) {
             this.driftResult = driftResult;
             return this;
         }
 
+        /** Thiết lập kết quả trôi dạt toàn cục */
         public Builder withGlobalDrift(DriftResult globalDrift) {
             this.globalDrift = globalDrift;
             return this;
         }
 
+        /** Thiết lập kết quả trôi dạt cục bộ */
         public Builder withLocalDrift(DriftResult localDrift) {
             this.localDrift = localDrift;
             return this;
         }
 
+        /** Thiết lập danh sách vector tập mục HUI */
         public Builder withItemsetVectors(List<String> itemsetVectors) {
             this.itemsetVectors = itemsetVectors;
             return this;
         }
 
+        /** Thiết lập ước tính tổng số dòng giao dịch */
         public Builder withTotalEstimate(int totalEstimate) {
             this.totalEstimate = totalEstimate;
             return this;
         }
 
+        /** Thiết lập tốc độ thông lượng xử lý */
         public Builder withSpeedTxPerSec(int speedTxPerSec) {
             this.speedTxPerSec = speedTxPerSec;
             return this;
         }
 
+        /** Thiết lập thông điệp mô tả sự kiện */
         public Builder withMessage(String message) {
             this.message = message;
             return this;
         }
 
+        /** Thiết lập thông điệp trôi dạt toàn cục */
         public Builder withGlobalDriftMessage(String globalDriftMessage) {
             this.globalDriftMessage = globalDriftMessage;
             return this;
         }
 
+        /** Thiết lập thông điệp trôi dạt cục bộ */
         public Builder withLocalDriftMessage(String localDriftMessage) {
             this.localDriftMessage = localDriftMessage;
             return this;
         }
 
+        /** Khởi tạo đối tượng SimulationEvent hoàn chỉnh */
         public SimulationEvent build() {
             return new SimulationEvent(this);
         }
