@@ -5,7 +5,8 @@ hình thức của bài báo nghiên cứu.
 
 ## Dữ liệu giao dịch đầu vào
 
-GUI lấy luồng giao dịch và bảng utility thông qua `DatasetService`.
+GUI lấy luồng giao dịch và tạo service mô phỏng thông qua `SimulationFacade`;
+Facade dùng `DatasetService` cho các thao tác dataset.
 `TransactionParser` hỗ trợ:
 
 - Dòng SPMF/HUIM dạng utility: danh sách item, utility giao dịch (TU) và
@@ -17,9 +18,10 @@ Với dữ liệu utility, utility từng item được đọc trực tiếp t�
 Với dữ liệu quantity, utility được tính từ quantity và external utility; nếu
 không có external utility cho item thì model dùng mặc định `1.0`.
 
-`DatasetService` và `DatasetManager` cung cấp chức năng tìm tập dữ liệu, kiểm
-định, nạp investment, mở reader giao dịch và ước lượng số dòng. GUI cũng có
-Running Example dựng sẵn và hỗ trợ tệp giao dịch tùy chỉnh.
+`SimulationFacade` cung cấp điểm truy cập cho GUI; `DatasetService` và
+`DatasetManager` thực hiện chức năng tìm tập dữ liệu, kiểm định, nạp investment,
+mở reader giao dịch và ước lượng số dòng. GUI cũng có Running Example dựng sẵn
+và hỗ trợ tệp giao dịch tùy chỉnh.
 
 ## Trình tự xử lý
 
@@ -27,7 +29,7 @@ Running Example dựng sẵn và hỗ trợ tệp giao dịch tùy chỉnh.
 tập dữ liệu / tệp / dữ liệu nhập tay
         │
         ▼
-DatasetService: bảng investment + reader giao dịch
+SimulationFacade / DatasetService: bảng investment + reader giao dịch
         │
         ▼
 SimulationWorker đọc từng dòng không rỗng và gán TID kế tiếp

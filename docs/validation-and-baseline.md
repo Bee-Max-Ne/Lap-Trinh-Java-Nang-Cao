@@ -2,24 +2,55 @@
 
 ## Lần xác minh code gần nhất đã ghi nhận
 
-Sau khi sửa lỗi lệch một đơn vị ở giới hạn `Max Tx` của GUI, toàn bộ 36 tệp
-Java trong `src` và `test` đã được biên dịch bằng `javac -encoding UTF-8` vào
-`out`. Các runner `main` độc lập sau trả mã thoát 0:
+Trong lượt đồng bộ ba mẫu thiết kế, toàn bộ tệp Java hiện có trong `src` và
+`test` được biên dịch bằng `javac` vào `out`. Các runner `main` độc lập sau trả
+mã thoát 0:
 
 | Runner | Phạm vi kiểm tra | Kết quả |
 |---|---|---|
 | `test.FinalValidationSuite` | Trường hợp biên số học, parser, nạp investment, kiểm định dữ liệu | ĐẠT |
 | `test.StrategyInjectionTest` | Tiêm/ủy quyền Strategy và API drift cũ/có kiểu | ĐẠT |
 | `test.SimulationServiceEventTest` | Event có kiểu, tiến độ, hoàn tất/lỗi, hủy listener | ĐẠT |
+| `test.FacadePatternTest` | Discovery/validation, tạo service, xử lý giao dịch, event checkpoint và mở stream qua Facade | ĐẠT |
 | `test.DatasetServiceTest` | Ranh giới ứng dụng cho tìm/đọc/kiểm định tập dữ liệu | ĐẠT |
 | `test.DataLayerTest` | Parser, investment, tìm tập dữ liệu và kiểm định | ĐẠT |
 | `test.BaselineRunner` | Running Example dựng sẵn gồm bốn giao dịch | ĐẠT |
 | `test.EndToEndChessRunner` | Chạy end-to-end trên tập Chess | ĐẠT |
 
+`StrategyInjectionTest`, `SimulationServiceEventTest`, `FacadePatternTest`,
+`DatasetServiceTest`, `DataLayerTest` và `FinalValidationSuite` đã được chạy
+trong cùng lượt xác minh sau khi biên dịch. `FacadePatternTest` kiểm tra luồng
+tích hợp từ service do Facade tạo đến event checkpoint; nó không kiểm thử GUI.
+
+`BaselineRunner` và `EndToEndChessRunner` cũng đã được chạy trong lượt này và
+đều kết thúc với mã thoát 0. `test.DriftPairBenchmark` và
+`test.FullBenchmarkSuite` không được chạy lại; không xem kết quả cũ là bằng
+chứng chạy mới.
+
 `test.DriftPairBenchmark` và `test.FullBenchmarkSuite` đã ĐẠT trong lần xác
 minh trước đó; không chạy lại sau thay đổi chỉ ảnh hưởng giới hạn GUI. Hồ sơ
 build/test mới nhất ở [baseline/test-result.txt](./baseline/test-result.txt);
 thông tin build ở [baseline/build-result.txt](./baseline/build-result.txt).
+
+## Sửa và kiểm tra hiển thị biểu đồ
+
+Sau thay đổi `ChartPanel`, toàn bộ Java trong `src` và `test` được biên dịch
+lại thành công. Các runner sau đã chạy lại với chế độ AWT headless và trả mã
+thoát 0:
+
+| Runner | Phạm vi | Kết quả |
+|---|---|---|
+| `huddtds.demo.ChartPanelTest` | TID tăng theo số, tọa độ X, log1p, nhãn đổi ngược, chỉ đánh dấu global drift và render component | ĐẠT |
+| `test.StrategyInjectionTest` | Tiêm/ủy quyền Strategy | ĐẠT |
+| `test.SimulationServiceEventTest` | Event/Observer | ĐẠT |
+| `test.FacadePatternTest` | Facade đến checkpoint event | ĐẠT |
+| `test.FinalValidationSuite` | Kiểm thử parser/toán học/dữ liệu | ĐẠT |
+
+Đây là xác minh component bằng mã và render headless, không phải GUI desktop
+smoke test. Thuật toán phát hiện drift không bị thay đổi. Điểm đỏ tiếp tục phản
+ánh `DriftResult` global của engine; DISHS thấp không đồng nghĩa không có drift,
+vì drift biểu thị thay đổi thống kê giữa các checkpoint chứ không phải DISHS
+vượt một ngưỡng tuyệt đối.
 
 Các lớp test là chương trình Java có `main`, không phải JUnit. Mã thoát thành
 công xác nhận runner kết thúc mà không gặp assertion hoặc lỗi không được xử lý;

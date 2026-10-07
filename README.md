@@ -32,7 +32,9 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 ├── docs/
 │   ├── README.md                       # Mục lục tài liệu hệ thống
 │   ├── architecture.md                 # Kiến trúc và dependency
-│   ├── design-patterns.md              # Strategy và Observer
+│   ├── design-patterns.md              # Strategy, Observer và Facade
+│   ├── design-patterns-presentation.md # Kịch bản trình bày chi tiết ba mẫu
+│   ├── Facade_Pattern_Explanation.md   # Phạm vi và cách dùng Facade hiện tại
 │   ├── algorithm-and-data-flow.md      # Thuật toán và luồng transaction
 │   ├── event-and-gui-flow.md           # Luồng sự kiện, GUI, EDT và giới hạn kiểm thử
 │   ├── validation-and-baseline.md      # Kiểm thử, benchmark, baseline, xác minh cuối
@@ -67,6 +69,7 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 │   ├── application/
 │   │   ├── DatasetService.java
 │   │   ├── SimulationService.java
+│   │   ├── facade/SimulationFacade.java
 │   │   └── event/
 │   │       ├── EventType.java
 │   │       ├── SimulationEvent.java
@@ -84,6 +87,8 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
     ├── FullBenchmarkSuite.java
     ├── StrategyInjectionTest.java
     ├── SimulationServiceEventTest.java
+    ├── FacadePatternTest.java
+    ├── ChartPanelTest.java
     └── DatasetServiceTest.java
 ```
 
@@ -96,7 +101,8 @@ các tên được liệt kê trong README.
 
 ```text
 demo.HUDD_TDS_GUI
- ├── application: DatasetService, SimulationService, SimulationEvent, SimulationListener
+ ├── application.facade: SimulationFacade
+ ├── application: SimulationService, SimulationEvent, SimulationListener
  ├── model: Transaction, Checkpoint, HighUtilityItemset, DriftResult
  ├── demo: ChartPanel
  └── Java Swing / SwingWorker
@@ -135,10 +141,10 @@ interface ở mọi ranh giới**. Một vài đặc điểm quan trọng của 
 
 ```text
 Presentation
-HUDD_TDS_GUI ──> DatasetService / SimulationService ──> SwingWorker.process() ──> Swing
-                         │
-                         ├── DatasetService ──> DatasetManager / DatasetValidator / InvestmentLoader
-                         └── SimulationService ──> TransactionParser ──> HUDD_TDS
+HUDD_TDS_GUI ──> SimulationFacade ──> DatasetService ──> DatasetManager / DatasetValidator / InvestmentLoader
+        │                     └────> SimulationService ──> TransactionParser ──> HUDD_TDS
+        └── SimulationListener <──────────────────────── SimulationService
+                 └── SwingWorker.process() ──> Swing
                                                                   │
                                                 ┌─────────────────┼──────────────────┐
                                                 ▼                 ▼                  ▼
@@ -176,9 +182,9 @@ HUDD_TDS_GUI ──> DatasetService / SimulationService ──> SwingWorker.proc
 - Các method tương thích `HUDD_TDS.checkGlobalDrift()` và
   `checkLocalDrift()` vẫn trả `String`/`null`; các method `*Result()` cung cấp
   kết quả có kiểu `DriftResult`.
-- GUI chỉ gọi `DatasetService` và `SimulationService` cho dữ liệu/mô phỏng; các
-  lớp data, parser, investment loader, engine và math được truy cập sau application
-  boundary.
+- GUI gọi `SimulationFacade` cho các thao tác dataset/mô phỏng chính; nó vẫn
+  nhận `SimulationService` và event để đăng ký observer. Các lớp data, parser,
+  investment loader, engine và math nằm phía sau application boundary.
 - Đây là application boundary ở mức service, chưa phải kiến trúc module/ports-and-adapters:
   `DatasetService` vẫn gọi trực tiếp `DatasetManager`, validator và loader; parser
   cùng `UtilityMetrics` còn có API static. Chưa có Repository/Factory abstraction.
@@ -191,15 +197,16 @@ parser, math và engine được gọi từ bên trong các service đó.
 
 | Tầng / lớp | Trách nhiệm theo source | Phụ thuộc nội bộ chính | Pattern / ghi chú |
 |---|---|---|---|
-| **Presentation — `demo.HUDD_TDS_GUI`** | Xây dựng Swing UI; nhận event để cập nhật bảng, chart, log, summary; khởi tạo `SimulationWorker`. | `DatasetService`, `SimulationService`, `SimulationEvent`, model payload, `ChartPanel`. | Observer subscriber; vẫn dùng `SwingWorker` để chạy nền và đưa cập nhật về EDT. |
+| **Presentation — `demo.HUDD_TDS_GUI`** | Xây dựng Swing UI; nhận event để cập nhật bảng, chart, log, summary; khởi tạo `SimulationWorker`. | `SimulationFacade`, `SimulationService`, `SimulationEvent`, model payload, `ChartPanel`. | Gọi Facade; Observer subscriber; dùng `SwingWorker` để chạy nền và đưa cập nhật về EDT. |
 | `demo.ChartPanel` | Vẽ checkpoint theo DISHS hoặc số HUI, đánh dấu global drift và cung cấp tooltip. | `Checkpoint`, Swing/AWT. | Component presentation. |
 | `demo.DemoRunner` | Tạo stream mẫu quantity-based, gọi engine và in checkpoint/HUI/drift. | `HUDD_TDS`, `Transaction`, `Checkpoint`, `HighUtilityItemset`. | CLI/demo entry point. |
 | **Application — `application.DatasetService`** | Cung cấp dataset names, validation summary, investment map, transaction reader và ước lượng kích thước. | `DatasetManager`, `DatasetValidator`, `InvestmentLoader`, `DatasetInfo`. | Application service; bọc implementation data cụ thể, chưa phải repository port. |
 | `application.SimulationService` | Parse transaction line, điều phối engine, chuẩn bị vector hiển thị và phát simulation events. | `HUDD_TDS`, `TransactionParser`, `UtilityMetrics`, model, event API. | Application service + Observer publisher; listener dùng danh sách thread-safe `CopyOnWriteArrayList`. |
+| `application.facade.SimulationFacade` | Cung cấp API gọn cho GUI để discovery/validation dataset, tạo simulation service, mở stream và ước lượng giao dịch. | `DatasetService`, `SimulationService`, `HUDD_TDS`. | Facade tầng ứng dụng; GUI sử dụng trực tiếp, không thay thế các service. |
 | `application.event.EventType` | Phân loại transaction progress, checkpoint, global/local drift, finish và error. | Không có. | Typed event discriminator. |
 | `application.event.SimulationEvent` | Gói TID, transaction/checkpoint, kết quả drift, vector hiển thị, tiến độ và thông báo. | `Transaction`, `Checkpoint`, `DriftResult`. | Event payload; không phụ thuộc Swing. |
 | `application.event.SimulationListener` | Contract `onUpdate` cho subscriber của simulation service. | `SimulationEvent`. | Observer interface. |
-| **Algorithm — `algorithm.HUDD_TDS`** | Giữ transaction memory, tạo checkpoint theo interval, gọi HUI/drift strategies và cộng D_mo thành DIS_HS. | `Transaction`, `Checkpoint`, `DriftResult`, `HUIItemsetMiner`, `GlobalDriftStrategy`, `LocalDriftStrategy`. | Orchestrator/Facade hiện có; constructor mặc định giữ compatibility, constructor khác cho phép inject strategies. |
+| **Algorithm — `algorithm.HUDD_TDS`** | Giữ transaction memory, tạo checkpoint theo interval, gọi HUI/drift strategies và cộng D_mo thành DIS_HS. | `Transaction`, `Checkpoint`, `DriftResult`, `HUIItemsetMiner`, `GlobalDriftStrategy`, `LocalDriftStrategy`. | Bộ điều phối thuật toán; constructor mặc định giữ compatibility, constructor khác cho phép inject strategies. |
 | `algorithm.mining.HUIItemsetMiner` | Contract khai phá HUI từ retained memory và TID hiện tại; nhận trace listener. | `Transaction`, `HighUtilityItemset`, `Consumer<String>`. | Strategy interface; default implementation là `HUIDiscovery`. |
 | `algorithm.HUIDiscovery` | Lọc promising items bằng TWU có decay, sinh/prune candidate và tính utility/D_mo. | `HUIItemsetMiner`, `UtilityMetrics`, `Transaction`, `Element`, `HighUtilityItemset`. | Concrete HUI Strategy; `maxItemsetSize` giới hạn độ sâu duyệt. |
 | `algorithm.drift.GlobalDriftStrategy` | Stateful contract nhận một observation DIS_HS và trả `DriftResult`. | `DriftResult`, `Consumer<String>`. | Strategy interface; default implementation là `GlobalDriftDetector`. |
@@ -217,7 +224,7 @@ parser, math và engine được gọi từ bên trong các service đó.
 | `model.HighUtilityItemset` | Lưu itemset, utility từng item, total utility và distance tới root. | Collection types. | Domain model. |
 | `model.Checkpoint` | Lưu TID, danh sách HUI và global distance tại một checkpoint. | `HighUtilityItemset`. | Domain snapshot. |
 | `model.ItemsetVector` | Lưu vector utility theo dimensions. | Collection types. | Value object cho phép tính/hiển thị vector. |
-| `model.DriftResult` | Lưu detected/type, checkpoint TIDs, statistic, threshold, description/direction và affected itemsets. | Không có. | Typed result; facade còn API chuỗi/`null` để tương thích. |
+| `model.DriftResult` | Lưu detected/type, checkpoint TIDs, statistic, threshold, description/direction và affected itemsets. | Không có. | Kết quả drift có kiểu; engine vẫn giữ API chuỗi/`null` để tương thích. |
 
 Các lớp `test.*` độc lập dùng `main`, không phải JUnit:
 
@@ -228,6 +235,8 @@ Các lớp `test.*` độc lập dùng `main`, không phải JUnit:
 | `FinalValidationSuite` | Kiểm tra biên công thức, parser, loader và validator. | `DatasetValidator`, `InvestmentLoader`, `TransactionParser`, `UtilityMetrics`. |
 | `StrategyInjectionTest` | Kiểm tra constructor injection, delegation và chuỗi legacy. | `HUDD_TDS`, ba strategy interfaces, `DriftResult`. |
 | `SimulationServiceEventTest` | Kiểm tra event checkpoint/progress/drift/finish/error và listener removal. | `SimulationService`, event API, fake strategies. |
+| `FacadePatternTest` | Kiểm tra truy cập dataset, tạo service, xử lý giao dịch, event checkpoint và mở stream qua Facade. | `SimulationFacade`, `SimulationService`, event API. |
+| `ChartPanelTest` | Kiểm tra thứ tự TID số, tọa độ trục X, log1p và điều kiện đánh dấu global drift. | `ChartPanel`, `Checkpoint`, `DriftResult`. |
 | `DatasetServiceTest` | Kiểm tra discovery, investment, stream, estimate và validation application API. | `DatasetService`. |
 | `DriftPairBenchmark` | Nối Chess/NewChess và Mushrooms/NewMushroom để khảo sát drift. | `HUDD_TDS`, data API, model. |
 | `EndToEndChessRunner` | Chạy pipeline trên dataset Chess. | `HUDD_TDS`, data API, model. |
@@ -372,14 +381,15 @@ thực tế; tên class hoặc dòng chữ `PASSED` trong log không tự xác n
 suite đã được chạy trong môi trường hiện tại. Hồ sơ kết quả baseline nằm tại
 [docs/baseline/](./docs/baseline/).
 
-### 2.8. Hai mẫu thiết kế được áp dụng trực tiếp
+### 2.8. Ba mẫu thiết kế được áp dụng trực tiếp
 
-Trong source hiện tại, hai pattern được áp dụng vào hai vấn đề khác nhau:
+Trong source hiện tại, ba pattern giải quyết ba trách nhiệm khác nhau:
 
 | Pattern | Vấn đề được giải quyết | Vị trí trong mã |
 |---|---|---|
 | **Strategy** | Tách lựa chọn thuật toán khai phá HUI và phát hiện drift khỏi bộ điều phối stream. | `HUDD_TDS` nhận ba strategy interfaces qua constructor. |
 | **Observer** | Tách nơi phát kết quả mô phỏng khỏi nơi hiển thị kết quả trong GUI. | `SimulationService` phát `SimulationEvent`; listener của GUI chuyển event đến `SwingWorker.process()`. |
+| **Facade** | Cung cấp điểm truy cập gọn cho các thao tác dataset và khởi tạo mô phỏng mà GUI cần. | `SimulationFacade` phối hợp `DatasetService` và `SimulationService`; GUI gọi Facade. |
 
 #### 2.8.1. Strategy Pattern — thay thế thuật toán qua contract
 
@@ -461,25 +471,42 @@ application service với GUI**. Nó không tự tạo thread, pause/resume ho�
 worker. Những việc đó vẫn thuộc `SwingWorker` và `SimulationWorker`; do đó hai
 cơ chế bổ sung cho nhau chứ không thay thế nhau.
 
-#### 2.8.3. Kiểm chứng và phạm vi
+#### 2.8.3. Kiểm chứng Strategy và Observer
 
 - `StrategyInjectionTest` kiểm tra engine nhận strategy qua constructor, gọi
   đúng implementation và giữ hành vi API chuỗi tương thích.
 - `SimulationServiceEventTest` kiểm tra checkpoint/progress/drift/finish/error
   events và việc hủy đăng ký listener.
-- `DatasetServiceTest` kiểm tra application boundary cho thao tác dataset; đây
-  là service boundary, không phải một trong hai pattern trên.
+- `DatasetServiceTest` kiểm tra application service cho thao tác dataset.
 
-Các API Strategy/Observer và test tương ứng được mô tả ở đây theo source hiện
-tại. Việc có các pattern này không đồng nghĩa toàn hệ thống đã dùng kiến trúc
+#### 2.8.4. Facade Pattern — đơn giản hóa truy cập dịch vụ ứng dụng
+
+`SimulationFacade` cung cấp API cho GUI để liệt kê và kiểm định dataset, tạo
+`SimulationService`, mở transaction stream, ước lượng số giao dịch và xuất CSV.
+GUI hiện gọi Facade cho discovery, validation, tạo service, mở stream và ước
+lượng; các thao tác export trong GUI vẫn được xử lý riêng ở tầng trình bày.
+
+Facade phối hợp các service, không thay thế chúng: `DatasetService` tiếp tục
+thực hiện thao tác dataset; `SimulationService` parse và xử lý giao dịch, sau
+đó phát event; `HUDD_TDS` điều phối thuật toán và gọi ba Strategy. Reader trả
+về từ Facade vẫn do caller đóng. `DemoRunner` tiếp tục gọi engine trực tiếp,
+nên Facade hiện được dùng chủ yếu bởi GUI.
+
+`FacadePatternTest` kiểm tra dataset API, tạo service, xử lý giao dịch và nhận
+event checkpoint từ service do Facade tạo, cùng việc mở stream Running Example.
+Test này chạy độc lập với Swing nhưng không thay thế kiểm thử tương tác GUI.
+
+Các API Strategy/Observer/Facade và test tương ứng được mô tả ở đây theo source
+hiện tại. Việc có các pattern này không đồng nghĩa toàn hệ thống đã dùng kiến trúc
 plug-in/module: `DatasetService` vẫn gọi trực tiếp data implementations;
 `TransactionParser` và `UtilityMetrics` còn là utility API; chưa có
-Repository/Factory cho nhiều nguồn dữ liệu. `HUDD_TDS` tiếp tục đóng vai trò
-orchestrator/Facade sẵn có, không tạo thêm Facade riêng.
+Repository/Factory cho nhiều nguồn dữ liệu. `HUDD_TDS` là bộ điều phối thuật
+toán, còn `SimulationFacade` là Facade của tầng ứng dụng.
 
-GUI gọi `DatasetService` và `SimulationService` thay vì phụ thuộc trực tiếp
-vào data implementation, parser, math hoặc engine. Domain không phụ thuộc Swing
-hay filesystem; math vẫn tham chiếu model trong phép tính D_mo/vector.
+GUI gọi `SimulationFacade` cho các thao tác ứng dụng chính; nó vẫn tham chiếu
+kiểu `SimulationService`, event và model để đăng ký listener/trình bày dữ liệu.
+Domain không phụ thuộc Swing hay filesystem; math vẫn tham chiếu model trong
+phép tính D_mo/vector.
 
 ---
 
@@ -596,7 +623,9 @@ GUI yêu cầu môi trường desktop có hỗ trợ Swing; chạy được lệ
    - Lọc phân loại sự kiện trong Bảng Drift (Tất cả / Chỉ Global / Chỉ Local).
 5. **Đồ thị tương tác (ChartPanel)**:
    - Chuyển đổi linh hoạt giữa 2 chỉ số: *Khoảng cách toàn cục (DISHS)* hoặc *Số lượng HUI*.
-   - Checkpoint có global drift được đánh dấu; hover xem TID, DISHS, số HUI và trạng thái.
+   - Sắp xếp checkpoint và bố trí trục X theo TID số tăng dần.
+   - Trục Y hiển thị thang `log1p`; nhãn tick và tooltip vẫn ghi giá trị metric gốc.
+   - Chỉ checkpoint có `DriftResult` loại global được xác nhận mới đánh dấu đỏ; hover hiển thị statistic và threshold của phép kiểm định.
 6. **Nhật ký và export**: Bảng HUI, bảng Drift, chart, summary metrics và process log. Menu export có HUI CSV, Drift CSV, summary TXT, process log TXT. CSV xuất các dòng đã tích lũy trong model bảng, không chỉ các dòng hiện còn nhìn thấy sau filter. Bật `Log từng giao dịch` để trace chi tiết; log được ghi trong `logs/`.
 
 ### 4.3. Chạy runner kiểm thử và benchmark
@@ -619,6 +648,14 @@ thư mục gốc sau khi biên dịch:
 - **Smoke test Observer event và application service**:
   ```powershell
   java -cp out test.SimulationServiceEventTest
+  ```
+- **Smoke test Facade và luồng event tích hợp**:
+  ```powershell
+  java -cp out test.FacadePatternTest
+  ```
+- **Kiểm tra thứ tự TID và hiển thị ChartPanel**:
+  ```powershell
+  java -cp out huddtds.demo.ChartPanelTest
   ```
 - **Smoke test application dataset service**:
   ```powershell

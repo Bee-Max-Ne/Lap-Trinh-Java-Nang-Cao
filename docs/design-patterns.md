@@ -1,8 +1,9 @@
-# Các mẫu thiết kế trong HUDD-TDS
+# Ba mẫu thiết kế trong HUDD-TDS
 
-Mã nguồn áp dụng trực tiếp hai mẫu thiết kế: **Strategy** trong bộ điều phối
-thuật toán và **Observer** trong dịch vụ mô phỏng. Hai mẫu giải quyết hai vấn
-đề khác nhau; không được thêm chỉ để phân loại hoặc trang trí kiến trúc.
+Mã nguồn hiện áp dụng trực tiếp ba mẫu thiết kế: **Strategy** trong bộ điều
+phối thuật toán, **Observer** trong dịch vụ mô phỏng và **Facade** tại ranh
+giới giữa GUI với các dịch vụ ứng dụng. Mỗi mẫu có một trách nhiệm riêng;
+không thêm pattern chỉ để trang trí kiến trúc.
 
 ## Strategy
 
@@ -134,3 +135,54 @@ nhiệm concurrency; Observer đảm nhiệm thông báo tách rời.
 drift/tiến độ/hoàn tất/lỗi và việc gỡ listener. Test này kiểm tra hành vi event
 của application service, không bao phủ toàn bộ tương tác thread của Swing
 runtime. Xem [SimulationServiceEventTest.java](../test/SimulationServiceEventTest.java).
+
+## Facade
+
+### Vì sao Facade phù hợp?
+
+GUI cần phối hợp nhiều thao tác ứng dụng liên quan đến dataset và mô phỏng:
+liệt kê/kiểm định dataset, nạp investment, tạo engine và `SimulationService`,
+mở transaction stream, ước lượng số giao dịch. `SimulationFacade` cung cấp một
+điểm truy cập đơn giản cho các thao tác này, để GUI không phải tự điều phối
+`DatasetService`, `DatasetManager`, `InvestmentLoader` và `HUDD_TDS`.
+
+Facade không thay thế các service bên dưới và cũng không chứa thuật toán mining
+hay drift. Nó gọi `DatasetService` và khởi tạo `SimulationService`; engine bên
+trong service tiếp tục sử dụng ba Strategy. `HUDD_TDS_GUI` là client trực tiếp
+đã được nối với Facade. `DemoRunner` vẫn gọi engine trực tiếp cho luồng demo
+dòng lệnh.
+
+### Phạm vi hiện thực
+
+`SimulationFacade` cung cấp các thao tác:
+
+- `getAvailableDatasets()` và `validateDataset(...)`;
+- `createSimulationService(...)`;
+- `openTransactionStream(...)`;
+- `estimateTransactionCount(...)`;
+- `exportToCSV(...)`.
+
+GUI hiện gọi Facade cho discovery, validation, tạo service, mở stream và ước
+lượng giao dịch. Các lệnh xuất của GUI hiện vẫn được xử lý tại GUI; sự hiện
+diện của `exportToCSV(...)` không có nghĩa phương thức đó đang được GUI gọi.
+Reader do Facade trả về vẫn thuộc trách nhiệm đóng của caller, thường bằng
+try-with-resources.
+
+### Kiểm chứng
+
+`FacadePatternTest` kiểm tra discovery, validation, tạo service, xử lý một giao
+dịch qua service do Facade tạo và nhận event checkpoint, cùng việc mở stream
+Running Example. Kiểm thử này xác nhận đường đi Facade → service → Observer ở
+mức ứng dụng; nó không kiểm thử tương tác Swing runtime. Xem
+[FacadePatternTest.java](../test/FacadePatternTest.java).
+
+## Kiểm chứng tổng hợp
+
+| Mẫu | Kiểm thử chính | Phạm vi xác nhận |
+|---|---|---|
+| Strategy | `StrategyInjectionTest` | Tiêm đủ ba contract, xác nhận delegation và API drift legacy/typed |
+| Observer | `SimulationServiceEventTest` | Loại/payload event, phát hiện drift, progress, finish, error và gỡ listener |
+| Facade | `FacadePatternTest` | Truy cập dataset, tạo/chạy service, event checkpoint và mở stream |
+
+Các kiểm thử trên xác nhận hành vi ở mức Java service/engine. Chúng không thay
+thế cho GUI smoke test đầy đủ hay benchmark trên toàn bộ dữ liệu.

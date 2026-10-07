@@ -1,6 +1,7 @@
 package huddtds.demo;
 
 import huddtds.model.Checkpoint;
+import huddtds.model.DriftResult;
 import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
@@ -35,6 +36,7 @@ public class ChartPanel extends JPanel {
 
     private final List<Checkpoint> checkpoints;
     private final Set<Integer> driftTids;
+    private final Map<Integer, DriftResult> driftResults;
     private MetricMode metricMode = MetricMode.GLOBAL_DISTANCE;
 
     // Hover state
@@ -44,6 +46,7 @@ public class ChartPanel extends JPanel {
     public ChartPanel() {
         this.checkpoints = new ArrayList<>();
         this.driftTids = new HashSet<>();
+        this.driftResults = new HashMap<>();
         setPreferredSize(new Dimension(440, 260));
         setBackground(Color.WHITE);
 
@@ -71,8 +74,9 @@ public class ChartPanel extends JPanel {
     public synchronized void updateChart(List<Checkpoint> data) {
         checkpoints.clear();
         driftTids.clear();
+        driftResults.clear();
         if (data != null) {
-            checkpoints.addAll(data);
+            checkpoints.addAll(sortCheckpointsByTid(data));
         }
         hoveredIndex = -1;
         repaint();
@@ -84,12 +88,24 @@ public class ChartPanel extends JPanel {
 
     public synchronized void addCheckpoint(Checkpoint cp, boolean isGlobalDrift) {
         if (cp != null) {
-            checkpoints.add(cp);
+            insertCheckpointInTidOrder(cp);
             if (isGlobalDrift) {
                 driftTids.add(cp.getTid());
             }
             repaint();
         }
+    }
+
+    public synchronized void addCheckpoint(Checkpoint cp, DriftResult globalDrift) {
+        if (cp == null) {
+            return;
+        }
+        insertCheckpointInTidOrder(cp);
+        if (isGlobalDrift(globalDrift)) {
+            driftTids.add(cp.getTid());
+            driftResults.put(cp.getTid(), globalDrift);
+        }
+        repaint();
     }
 
     public synchronized void markDrift(int tid) {
@@ -100,8 +116,18 @@ public class ChartPanel extends JPanel {
     public synchronized void clear() {
         checkpoints.clear();
         driftTids.clear();
+        driftResults.clear();
         hoveredIndex = -1;
         repaint();
+    }
+
+    private void insertCheckpointInTidOrder(Checkpoint checkpoint) {
+        checkpoints.removeIf(existing -> existing.getTid() == checkpoint.getTid());
+        driftTids.remove(checkpoint.getTid());
+        driftResults.remove(checkpoint.getTid());
+        int insertionIndex = Collections.binarySearch(
+                checkpoints, checkpoint, Comparator.comparingInt(Checkpoint::getTid));
+        checkpoints.add(insertionIndex < 0 ? -insertionIndex - 1 : insertionIndex, checkpoint);
     }
 
     private synchronized double getMetricValue(Checkpoint cp) {
@@ -125,10 +151,12 @@ public class ChartPanel extends JPanel {
             return;
         }
 
+        List<Checkpoint> sortedCheckpoints = sortCheckpointsByTid(checkpoints);
         int bestIdx = -1;
         double bestDist = 24.0; // bán kính bắt điểm
-        for (int i = 0; i < checkpoints.size(); i++) {
-            int x = paddingLeft + (int) ((double) i / Math.max(1, checkpoints.size() - 1) * plotWidth);
+        for (int i = 0; i < sortedCheckpoints.size(); i++) {
+            int x = xForTid(sortedCheckpoints.get(i).getTid(), sortedCheckpoints,
+                    paddingLeft, plotWidth);
             double dist = Math.abs(x - mousePoint.x);
             if (dist < bestDist) {
                 bestDist = dist;
@@ -163,16 +191,18 @@ public class ChartPanel extends JPanel {
         // Tiêu đề đồ thị
         g2.setColor(new Color(30, 41, 59));
         g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        g2.drawString(metricMode.getTitle(), paddingLeft, 22);
+        g2.drawString(metricMode.getTitle() + " (log1p)", paddingLeft, 22);
 
         // Chú giải (Legend) ở góc trên phải
-        drawLegend(g2, width - paddingRight - 160, 10);
+        drawLegend(g2, width - paddingRight - 140, 10);
 
         List<Checkpoint> snapshot;
         Set<Integer> driftSnapshot;
+        Map<Integer, DriftResult> driftResultSnapshot;
         synchronized (this) {
-            snapshot = new ArrayList<>(checkpoints);
+                snapshot = sortCheckpointsByTid(checkpoints);
             driftSnapshot = new HashSet<>(driftTids);
+            driftResultSnapshot = new HashMap<>(driftResults);
         }
 
         if (snapshot.isEmpty() || plotWidth <= 0 || plotHeight <= 0) {
@@ -183,26 +213,34 @@ public class ChartPanel extends JPanel {
             return;
         }
 
-        // Tìm min/max
-        double minValue = Double.POSITIVE_INFINITY;
-        double maxValue = Double.NEGATIVE_INFINITY;
+        // Dùng log1p để giữ được chi tiết ở vùng thấp mà vẫn biểu diễn được các đỉnh lớn.
+        double minTransformed = Double.POSITIVE_INFINITY;
+        double maxTransformed = Double.NEGATIVE_INFINITY;
         for (Checkpoint cp : snapshot) {
-            double v = getMetricValue(cp);
-            minValue = Math.min(minValue, v);
-            maxValue = Math.max(maxValue, v);
+            double transformed = transformMetric(getMetricValue(cp));
+            minTransformed = Math.min(minTransformed, transformed);
+            maxTransformed = Math.max(maxTransformed, transformed);
         }
 
-        if (minValue > maxValue) {
-            minValue = 0.0;
-            maxValue = 1.0;
+        if (!Double.isFinite(minTransformed) || !Double.isFinite(maxTransformed)) {
+            g2.setColor(new Color(148, 163, 184));
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g2.drawString("Dữ liệu đồ thị chứa giá trị không hữu hạn.", paddingLeft + 15, paddingTop + 40);
+            g2.dispose();
+            return;
         }
-        double valueRange = maxValue - minValue;
-        if (valueRange == 0.0) {
-            valueRange = Math.max(1.0, Math.abs(maxValue) * 0.2);
+        double transformedRange = maxTransformed - minTransformed;
+        if (transformedRange == 0.0) {
+            transformedRange = Math.max(1.0, Math.abs(maxTransformed) * 0.2);
         }
-        double chartMin = Math.max(0.0, minValue - valueRange * 0.15);
-        double chartMax = maxValue + valueRange * 0.15;
-        if (chartMax <= chartMin) chartMax = chartMin + 1.0;
+        double chartMin = minTransformed - transformedRange * 0.10;
+        double chartMax = maxTransformed + transformedRange * 0.15;
+        if (minTransformed >= 0.0) {
+            chartMin = 0.0;
+        }
+        if (chartMin == chartMax) {
+            chartMax = chartMin + 1.0;
+        }
 
         // Vùng vẽ trắng
         g2.setColor(Color.WHITE);
@@ -216,7 +254,7 @@ public class ChartPanel extends JPanel {
         for (int t = 0; t <= ticks; t++) {
             double ratio = (double) t / ticks;
             int y = paddingTop + (int) (ratio * plotHeight);
-            double val = chartMax - ratio * (chartMax - chartMin);
+            double val = inverseTransformMetric(chartMax - ratio * (chartMax - chartMin));
 
             g2.setColor(new Color(241, 245, 249));
             g2.drawLine(paddingLeft, y, paddingLeft + plotWidth, y);
@@ -224,7 +262,7 @@ public class ChartPanel extends JPanel {
             g2.setColor(new Color(100, 116, 139));
             String label = (metricMode == MetricMode.HUI_COUNT)
                     ? String.format(Locale.US, "%.0f", val)
-                    : String.format(Locale.US, "%.3f", val);
+                    : String.format(Locale.US, "%.3g", val);
             g2.drawString(label, 6, y + 4);
         }
 
@@ -234,8 +272,9 @@ public class ChartPanel extends JPanel {
         int[] yCoords = new int[n];
 
         for (int i = 0; i < n; i++) {
-            xCoords[i] = paddingLeft + (int) ((double) i / Math.max(1, n - 1) * plotWidth);
-            double normalized = (getMetricValue(snapshot.get(i)) - chartMin) / (chartMax - chartMin);
+            xCoords[i] = xForTid(snapshot.get(i).getTid(), snapshot, paddingLeft, plotWidth);
+            double transformed = transformMetric(getMetricValue(snapshot.get(i)));
+            double normalized = (transformed - chartMin) / (chartMax - chartMin);
             yCoords[i] = paddingTop + plotHeight - (int) (normalized * plotHeight);
         }
 
@@ -274,7 +313,9 @@ public class ChartPanel extends JPanel {
             if (i % labelStep == 0 || i == n - 1) {
                 g2.setColor(new Color(100, 116, 139));
                 g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-                g2.drawString("T" + cp.getTid(), x - 12, paddingTop + plotHeight + 18);
+                String tidLabel = "T" + cp.getTid();
+                g2.drawString(tidLabel, x - g2.getFontMetrics().stringWidth(tidLabel) / 2,
+                        paddingTop + plotHeight + 18);
             }
 
             // Điểm tròn
@@ -315,12 +356,18 @@ public class ChartPanel extends JPanel {
             // Hộp Tooltip
             String line1 = "TID: " + hCp.getTid();
             String line2 = String.format(Locale.US, "DISHS: %.4f | HUI: %d", hCp.getGlobalDistance(), hCp.getHuis().size());
-            String line3 = isDrift ? "⚡ TRÔI DẠT (DRIFT)" : "✓ ỔN ĐỊNH";
+            DriftResult driftResult = driftResultSnapshot.get(hCp.getTid());
+            String line3 = isDrift ? "TRÔI DẠT TOÀN CỤC" : "ỔN ĐỊNH";
+            String line4 = driftResult == null
+                    ? "Đánh dấu theo kết quả kiểm định drift"
+                    : String.format(Locale.US, "|U-V|=%.3g >= epsilon=%.3g",
+                            driftResult.getStatistic(), driftResult.getThreshold());
 
             g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
             FontMetrics fm = g2.getFontMetrics();
-            int boxWidth = Math.max(fm.stringWidth(line1), Math.max(fm.stringWidth(line2), fm.stringWidth(line3))) + 16;
-            int boxHeight = 52;
+            int boxWidth = Math.max(Math.max(fm.stringWidth(line1), fm.stringWidth(line2)),
+                    Math.max(fm.stringWidth(line3), fm.stringWidth(line4))) + 16;
+            int boxHeight = 66;
             int boxX = Math.min(width - boxWidth - 10, Math.max(10, hX - boxWidth / 2));
             int boxY = Math.max(paddingTop + 5, hY - boxHeight - 10);
 
@@ -334,7 +381,9 @@ public class ChartPanel extends JPanel {
             g2.setColor(new Color(226, 232, 240));
             g2.drawString(line2, boxX + 8, boxY + 30);
             g2.setColor(isDrift ? new Color(248, 113, 113) : new Color(74, 222, 128));
-            g2.drawString(line3, boxX + 8, boxY + 45);
+            g2.drawString(line3, boxX + 8, boxY + 44);
+            g2.setColor(new Color(226, 232, 240));
+            g2.drawString(line4, boxX + 8, boxY + 58);
         }
 
         g2.dispose();
@@ -353,7 +402,39 @@ public class ChartPanel extends JPanel {
         g2.setColor(new Color(220, 38, 38));
         g2.fillOval(x + 65, y + 2, 7, 7);
         g2.setColor(new Color(71, 85, 105));
-        g2.drawString("Trôi dạt (Drift)", x + 76, y + 9);
+        g2.drawString("Trôi dạt toàn cục", x + 76, y + 9);
+    }
+
+    static List<Checkpoint> sortCheckpointsByTid(List<Checkpoint> data) {
+        List<Checkpoint> sorted = new ArrayList<>(data);
+        sorted.sort(Comparator.comparingInt(Checkpoint::getTid));
+        return sorted;
+    }
+
+    static boolean isGlobalDrift(DriftResult result) {
+        return result != null
+                && result.isDetected()
+                && result.getType() == DriftResult.DriftType.GLOBAL_DRIFT;
+    }
+
+    static double transformMetric(double value) {
+        return Math.copySign(Math.log1p(Math.abs(value)), value);
+    }
+
+    static double inverseTransformMetric(double value) {
+        return Math.copySign(Math.expm1(Math.abs(value)), value);
+    }
+
+    static int xForTid(int tid,
+                       List<Checkpoint> sortedCheckpoints,
+                       int paddingLeft,
+                       int plotWidth) {
+        int firstTid = sortedCheckpoints.get(0).getTid();
+        int lastTid = sortedCheckpoints.get(sortedCheckpoints.size() - 1).getTid();
+        if (firstTid == lastTid) {
+            return paddingLeft + plotWidth / 2;
+        }
+        double ratio = ((double) tid - firstTid) / ((double) lastTid - firstTid);
+        return paddingLeft + (int) Math.round(ratio * plotWidth);
     }
 }
-

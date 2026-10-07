@@ -60,11 +60,22 @@ khiển hoạt động.
 - Chọn tập dữ liệu, tệp giao dịch tùy chỉnh hoặc dữ liệu Running Example.
 - Bảng HUI/drift, thanh tiến độ, thẻ trạng thái, báo cáo tổng kết và nhật ký.
 - Điều khiển tìm kiếm/lọc và chọn chỉ số biểu đồ.
+- `ChartPanel` sắp xếp checkpoint theo TID số tăng dần, bố trí trục X theo
+  khoảng TID thực và dùng biến đổi log1p có dấu cho trục Y; nhãn trục và
+  tooltip thể hiện lại giá trị DISHS/HUI gốc.
+- Điểm đỏ chỉ đại diện cho `DriftResult` đã phát hiện loại global ở checkpoint
+  đó. Drift là kết quả so sánh thống kê giữa các checkpoint, không phải điều
+  kiện `DISHS > một ngưỡng`; tooltip hiển thị statistic và threshold để phân
+  biệt mức DISHS với quyết định drift.
 - Menu xuất HUI CSV, Drift CSV, báo cáo tổng kết TXT và nhật ký xử lý TXT.
 - Tùy chọn trace từng giao dịch và thanh trượt độ trễ.
 
 Đây là các chức năng đã được xác nhận qua source; không có nghĩa tất cả tương
 tác hoặc định dạng xuất đã được kiểm thử thủ công.
+
+`ChartPanelTest` kiểm tra sắp xếp TID bằng số, thứ tự tọa độ X, tính chất nén
+giá trị của log1p, phép đổi ngược cho nhãn trục và điều kiện chỉ đánh dấu drift
+toàn cục. Đây là kiểm thử logic component, không thay thế smoke test desktop.
 
 ## Giới hạn xác minh GUI
 

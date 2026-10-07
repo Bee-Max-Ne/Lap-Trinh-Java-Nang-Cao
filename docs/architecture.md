@@ -6,10 +6,12 @@ Kho mã là một ứng dụng Java được tổ chức thành các gói, khôn
 module có thể triển khai độc lập. Chiều phụ thuộc quan sát được trong mã nguồn:
 
 ```text
-demo / trình bày
+Tầng trình bày
         │
         ▼
-dịch vụ ứng dụng và API sự kiện
+SimulationFacade ──> DatasetService / SimulationService
+                              │
+                              └──> API sự kiện
         │
         ▼
 algorithm ───── data ───── math
@@ -25,9 +27,10 @@ GUI Swing sử dụng các dịch vụ ứng dụng để truy cập tập dữ 
 
 ## Sơ đồ kiến trúc hệ thống
 
-Sơ đồ dưới đây tóm tắt các tầng và quan hệ phụ thuộc chính trong source. Các
-strategy là những điểm được tiêm vào `HUDD_TDS`; `HUIDiscovery` cùng hai
-detector là các implementation mặc định. Các gói `data`, `math` và
+Sơ đồ dưới đây tóm tắt các tầng và quan hệ phụ thuộc chính trong source.
+`SimulationFacade` là điểm truy cập mà GUI dùng để phối hợp dịch vụ dataset và
+mô phỏng. Các strategy là những điểm được tiêm vào `HUDD_TDS`; `HUIDiscovery`
+cùng hai detector là các implementation mặc định. Các gói `data`, `math` và
 `algorithm` đều dùng các kiểu thuộc `model`.
 
 ```mermaid
@@ -40,10 +43,12 @@ flowchart TD
     end
 
     subgraph Application["Tầng ứng dụng"]
+        FACADE["SimulationFacade"]
         DS["DatasetService"]
         SS["SimulationService"]
         EVENTS["SimulationEvent / SimulationListener / EventType"]
-        DS --> SS
+        FACADE --> DS
+        FACADE --> SS
         SS --> EVENTS
     end
 
@@ -72,11 +77,12 @@ flowchart TD
         MODEL["Transaction / Element / Checkpoint / HighUtilityItemset / DriftResult / ItemsetVector"]
     end
 
-    GUI --> DS
-    GUI --> SS
+    GUI --> FACADE
+    GUI -. "đăng ký listener / nhận event" .-> SS
     CLI --> ENGINE
     SS --> DATA
     SS --> ENGINE
+    DS --> DATA
     HUI_IMPL --> MATH
     GLOBAL_IMPL --> MATH
     LOCAL_IMPL --> MATH
@@ -90,7 +96,8 @@ flowchart TD
 | Gói | Trách nhiệm chính | Một số kiểu tiêu biểu |
 |---|---|---|
 | `huddtds.demo` | Giao diện Swing và chương trình minh họa dòng lệnh | `HUDD_TDS_GUI`, `ChartPanel`, `DemoRunner` |
-| `huddtds.application` | Ranh giới ứng dụng cho thao tác tập dữ liệu và mô phỏng luồng | `DatasetService`, `SimulationService` |
+| `huddtds.application` | Dịch vụ ứng dụng cho dataset và mô phỏng | `DatasetService`, `SimulationService` |
+| `huddtds.application.facade` | Điểm truy cập đơn giản cho các thao tác ứng dụng mà GUI cần | `SimulationFacade` |
 | `huddtds.application.event` | Thông báo mô phỏng có kiểu dữ liệu rõ ràng | `EventType`, `SimulationEvent`, `SimulationListener` |
 | `huddtds.algorithm` | Điều phối luồng/checkpoint và các cài đặt thuật toán mặc định | `HUDD_TDS`, `HUIDiscovery`, `GlobalDriftDetector`, `LocalDriftDetector` |
 | `huddtds.algorithm.mining` | Hợp đồng chiến lược khai phá HUI | `HUIItemsetMiner` |
@@ -103,8 +110,9 @@ flowchart TD
 
 ```text
 HUDD_TDS_GUI
-  ├── DatasetService
-  ├── SimulationService
+  ├── SimulationFacade ──> DatasetService
+  ├── SimulationFacade ──> tạo SimulationService
+  ├── đăng ký listener với SimulationService / nhận event
   ├── SimulationEvent / SimulationListener
   ├── các kiểu model dùng để hiển thị
   └── ChartPanel
@@ -124,18 +132,21 @@ HUDD_TDS
 algorithm / data / math ──> model
 ```
 
-GUI dùng `SimulationService` làm ranh giới ứng dụng để xử lý giao dịch và phát
-sự kiện. Service gọi parser và engine bên trong; GUI không cần tự tạo các lớp
-cài đặt thuật toán/dữ liệu cho từng giao dịch. Đây không phải service chạy ở
-tiến trình riêng hay hệ thống nạp plugin.
+GUI dùng `SimulationFacade` để truy cập các thao tác dataset và tạo/mở luồng
+mô phỏng. Facade trả về `SimulationService`; service gọi parser và engine bên
+trong, rồi phát sự kiện cho GUI listener. Facade không thay thế các service,
+không chứa thuật toán và không phải service chạy ở tiến trình riêng hay hệ
+thống nạp plugin.
 
 ## Các ràng buộc kiến trúc thể hiện trong mã nguồn
 
 - `HUDD_TDS` điều phối việc lưu giao dịch, tạo checkpoint và gọi các strategy.
   Chi tiết khai phá và tính toán drift có thể thay thế qua interface chiến lược.
-- GUI sử dụng `DatasetService` cho việc tìm và truy cập tệp, nhưng tầng dữ liệu
-  vẫn dùng trực tiếp các lớp cài đặt cụ thể; chưa có repository interface hay
-  factory tổng quát cho nhiều nguồn dữ liệu.
+- `SimulationFacade` gom các thao tác ứng dụng mà GUI cần; nó không làm thay
+  nhiệm vụ của `DatasetService` hoặc `SimulationService`.
+- GUI sử dụng Facade để truy cập `DatasetService` cho việc tìm và truy cập tệp,
+  nhưng tầng dữ liệu vẫn dùng trực tiếp các lớp cài đặt cụ thể; chưa có
+  repository interface hay factory tổng quát cho nhiều nguồn dữ liệu.
 - API sự kiện không phụ thuộc Swing. `SwingWorker` và GUI chịu trách nhiệm chạy
   nền cũng như cập nhật component.
 - Các đối tượng model được dùng chung giữa nhiều tầng. Java module chưa được

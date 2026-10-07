@@ -93,10 +93,11 @@ public class SimulationService {
     }
 
     public void reportError(Throwable error, int tid) {
-        Objects.requireNonNull(error, "error");
+        Throwable reportedError = Objects.requireNonNull(error, "error");
         publish(new SimulationEvent(EventType.SIMULATION_ERROR, tid, null,
                 null, null, null, null, null, 0, 0,
-                error.getClass().getSimpleName() + ": " + error.getMessage(), null, null));
+                reportedError.getClass().getSimpleName() + ": " + reportedError.getMessage(),
+                null, null));
     }
 
     private void publish(SimulationEvent event) {

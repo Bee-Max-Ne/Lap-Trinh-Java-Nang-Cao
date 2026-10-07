@@ -1119,7 +1119,7 @@ public class HUDD_TDS_GUI extends JFrame {
                     }
 
                     // Cập nhật ChartPanel với đánh dấu điểm Drift
-                    chartPanel.addCheckpoint(cp, hasGlobalDrift);
+                    chartPanel.addCheckpoint(cp, globalResult);
 
                     // Cập nhật chi tiết tính toán
                     calculationDetails.setText(String.format(Locale.US,

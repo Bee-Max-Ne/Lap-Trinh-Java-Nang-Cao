@@ -3,7 +3,6 @@ package huddtds.application.facade;
 import huddtds.algorithm.HUDD_TDS;
 import huddtds.application.DatasetService;
 import huddtds.application.SimulationService;
-import huddtds.data.DatasetValidator;
 
 import java.io.BufferedReader;
 import java.io.File;
