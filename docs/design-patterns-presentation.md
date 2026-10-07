@@ -1,7 +1,7 @@
-# Nội dung trình bày: ba mẫu thiết kế trong HUDD-TDS
+# Nội dung trình bày: bốn mẫu thiết kế trong HUDD-TDS
 
-Tài liệu này là kịch bản trình bày chi tiết về ba mẫu thiết kế đang có trong
-mã nguồn: **Strategy**, **Observer** và **Facade**. Nội dung mô tả implementation
+Tài liệu này là kịch bản trình bày chi tiết về bốn mẫu thiết kế đang có trong
+mã nguồn: **Strategy**, **Observer**, **Facade** và **Builder**. Nội dung mô tả implementation
 đang dùng, không phải kiến trúc giả định hay thiết kế tương lai.
 
 ## Mục tiêu phần trình bày
@@ -13,7 +13,7 @@ Sau phần trình bày, người nghe có thể:
 3. Mô tả được đường đi từ giao dịch đầu vào đến kết quả hiển thị.
 4. Nêu được bằng chứng kiểm thử và giới hạn đã xác nhận.
 
-## Sơ đồ tổng quan: ba mẫu phối hợp như thế nào?
+## Sơ đồ tổng quan: bốn mẫu phối hợp như thế nào?
 
 ```mermaid
 flowchart TD
@@ -24,7 +24,7 @@ flowchart TD
     SIM_SERVICE["SimulationService<br/>Observer Publisher"]
     LISTENER["SimulationListener<br/>Observer"]
     SWING_WORKER["SwingWorker.publish / process"]
-    ENGINE["HUDD_TDS<br/>Bộ điều phối"]
+    ENGINE["HUDD_TDS<br/>Bộ điều phối (dựng qua Builder)"]
     MINER_CONTRACT["HUIItemsetMiner"]
     GLOBAL_CONTRACT["GlobalDriftStrategy"]
     LOCAL_CONTRACT["LocalDriftStrategy"]
@@ -32,6 +32,7 @@ flowchart TD
     GLOBAL["GlobalDriftDetector"]
     LOCAL["LocalDriftDetector"]
     MODEL["Transaction / Checkpoint / DriftResult"]
+    EVENT_BUILDER["SimulationEvent.Builder"]
     VIEW["Bảng / nhật ký / tiến độ / biểu đồ"]
 
     USER --> GUI
@@ -46,7 +47,8 @@ flowchart TD
     GLOBAL -. "implementation mặc định" .-> GLOBAL_CONTRACT
     LOCAL -. "implementation mặc định" .-> LOCAL_CONTRACT
     ENGINE --> MODEL
-    SIM_SERVICE --> LISTENER
+    SIM_SERVICE --> EVENT_BUILDER
+    EVENT_BUILDER --> LISTENER
     LISTENER --> SWING_WORKER
     SWING_WORKER --> VIEW
     GUI --> VIEW
@@ -54,10 +56,11 @@ flowchart TD
 
 ### Lời dẫn gợi ý
 
-> Ba mẫu nằm ở ba ranh giới khác nhau. Facade giúp GUI gọi nghiệp vụ ứng dụng
+> Bốn mẫu nằm ở các ranh giới khác nhau. Facade giúp GUI gọi nghiệp vụ ứng dụng
 > gọn hơn. Strategy cho engine lựa chọn/thay thế thuật toán HUI và phát hiện
 > drift. Observer chuyển kết quả từ service đến subscriber mà không để service
-> phụ thuộc Swing. Chúng phối hợp trong cùng luồng xử lý nhưng không thay thế
+> phụ thuộc Swing. Builder giúp khởi tạo engine và event payload an toàn, linh hoạt.
+> Chúng phối hợp trong cùng luồng xử lý nhưng không thay thế nhau.
 > trách nhiệm của nhau.
 
 ## 1. Strategy — thay đổi thuật toán mà giữ nguyên bộ điều phối
@@ -325,13 +328,14 @@ try-with-resources cho stream.
 > stream. Facade vẫn ủy quyền cho service đúng trách nhiệm; nó không chứa thuật
 > toán và không làm mất khả năng dùng trực tiếp engine ở DemoRunner.
 
-## 4. So sánh nhanh ba mẫu
+## 4. So sánh nhanh bốn mẫu
 
 | Mẫu | Câu hỏi trả lời | Nơi áp dụng | Giá trị mang lại |
 |---|---|---|---|
 | Strategy | Làm sao thay một thuật toán mà giữ bộ điều phối? | `HUDD_TDS` và ba strategy interfaces | Giảm phụ thuộc implementation; dễ tiêm fake strategy để kiểm thử |
 | Observer | Làm sao thông báo kết quả mà không gọi trực tiếp GUI? | `SimulationService` và event/listener API | Publisher độc lập với Swing; có thể có subscriber/test listener khác |
 | Facade | Làm sao GUI truy cập subsystem ứng dụng gọn hơn? | `SimulationFacade` trước các application/data services | Gom các lời gọi phổ biến; giảm hiểu biết subsystem ở client GUI |
+| Builder | Làm sao khởi tạo đối tượng phức tạp an toàn và dễ đọc? | `HUDD_TDS.Builder` và `SimulationEvent.Builder` | Tránh Telescoping Constructors, validate tham số biên (`minutil >= 0`, `interval > 0`) trước khi dựng đối tượng |
 
 ## 5. Kết quả kiểm thử thực tế
 
@@ -341,9 +345,9 @@ Trong lần xác minh gần nhất đã thực hiện:
 2. `StrategyInjectionTest`: thành công.
 3. `SimulationServiceEventTest`: thành công.
 4. `FacadePatternTest`: thành công.
-5. `DatasetServiceTest`, `DataLayerTest`, `FinalValidationSuite`:
-   thành công.
-6. `BaselineRunner` và `EndToEndChessRunner`: kết thúc với mã thoát 0.
+5. `BuilderPatternTest`: thành công.
+6. `DatasetServiceTest`, `DataLayerTest`, `FinalValidationSuite`: thành công.
+7. `BaselineRunner` và `EndToEndChessRunner`: kết thúc với mã thoát 0.
 
 `DriftPairBenchmark` và `FullBenchmarkSuite` không chạy lại trong lần xác minh
 đó. Tài liệu này cũng không kết luận GUI đã được kiểm thử toàn diện; các giới
@@ -351,12 +355,12 @@ hạn desktop được ghi tại [validation-and-baseline.md](./validation-and-b
 
 ## 6. Kết luận phần trình bày
 
-> Ba mẫu được đặt đúng ba điểm khác nhau của hệ thống: Facade ở ranh giới
+> Bốn mẫu được đặt đúng bốn điểm khác nhau của hệ thống: Facade ở ranh giới
 > presentation/application, Observer ở đường truyền kết quả service/client,
-> Strategy bên trong engine thuật toán. Kiểm thử hiện có xác nhận injection,
-> delegation, event flow, hủy listener và đường tích hợp Facade đến event
-> checkpoint. Các kết quả này xác nhận hành vi của source/test đã chạy; chúng
-> không thay thế benchmark chưa chạy lại hoặc GUI smoke test đầy đủ.
+> Strategy bên trong engine thuật toán, và Builder tại bước khởi tạo các đối tượng phức tạp.
+> Kiểm thử hiện có xác nhận injection, delegation, event flow, hủy listener, khởi tạo qua Builder
+> và đường tích hợp Facade đến event checkpoint. Các kết quả này xác nhận hành vi của source/test đã chạy;
+> chúng không thay thế benchmark chưa chạy lại hoặc GUI smoke test đầy đủ.
 
 ## 7. Câu hỏi có thể được hỏi khi bảo vệ
 

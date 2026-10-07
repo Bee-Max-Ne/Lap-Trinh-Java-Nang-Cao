@@ -383,15 +383,16 @@ thực tế; tên class hoặc dòng chữ `PASSED` trong log không tự xác n
 suite đã được chạy trong môi trường hiện tại. Hồ sơ kết quả baseline nằm tại
 [docs/baseline/](./docs/baseline/).
 
-### 2.8. Ba mẫu thiết kế được áp dụng trực tiếp
+### 2.8. Bốn mẫu thiết kế được áp dụng trực tiếp
 
-Trong source hiện tại, ba pattern giải quyết ba trách nhiệm khác nhau:
+Trong source hiện tại, bốn pattern giải quyết bốn trách nhiệm khác nhau:
 
 | Pattern | Vấn đề được giải quyết | Vị trí trong mã |
 |---|---|---|
-| **Strategy** | Tách lựa chọn thuật toán khai phá HUI và phát hiện drift khỏi bộ điều phối stream. | `HUDD_TDS` nhận ba strategy interfaces qua constructor. |
+| **Strategy** | Tách lựa chọn thuật toán khai phá HUI và phát hiện drift khỏi bộ điều phối stream. | `HUDD_TDS` nhận ba strategy interfaces qua constructor/builder. |
 | **Observer** | Tách nơi phát kết quả mô phỏng khỏi nơi hiển thị kết quả trong GUI. | `SimulationService` phát `SimulationEvent`; listener của GUI chuyển event đến `SwingWorker.process()`. |
 | **Facade** | Cung cấp điểm truy cập gọn cho các thao tác dataset và khởi tạo mô phỏng mà GUI cần. | `SimulationFacade` phối hợp `DatasetService` và `SimulationService`; GUI gọi Facade. |
+| **Builder** | Giải quyết vấn đề Telescoping Constructors, quản lý tham số bắt buộc & tùy chọn, validate ràng buộc dữ liệu. | `HUDD_TDS.Builder` khởi tạo Engine; `SimulationEvent.Builder` khởi tạo payload sự kiện. |
 
 #### 2.8.1. Strategy Pattern — thay thế thuật toán qua contract
 
@@ -426,8 +427,8 @@ trả `DriftResult` thay vì buộc caller phải suy luận kết quả từ ch
 chuỗi tương ứng.
 
 Để thêm một biến thể thuật toán, implement contract tương ứng rồi truyền instance
-vào constructor injection của `HUDD_TDS`; không cần sửa luồng quản lý transaction
-và checkpoint trong engine. Strategy không thay đổi mặc định nào được dùng nếu
+vào constructor injection hoặc Builder của `HUDD_TDS`; không cần sửa luồng quản lý
+transaction và checkpoint trong engine. Strategy không thay đổi mặc định nào được dùng nếu
 caller khởi tạo engine bằng constructor tương thích cũ.
 
 #### 2.8.2. Observer Pattern — phát sự kiện mô phỏng tới subscribers
@@ -435,8 +436,8 @@ caller khởi tạo engine bằng constructor tương thích cũ.
 `SimulationService` là publisher. Nó giữ danh sách `SimulationListener` trong
 `CopyOnWriteArrayList`, cung cấp `addListener()` / `removeListener()`, và gọi
 `onUpdate(SimulationEvent)` khi có event. Event type là enum `EventType`; payload
-được đóng gói trong `SimulationEvent`, gồm những trường phù hợp như TID,
-transaction/checkpoint, `DriftResult`, vector hiển thị, tiến độ hoặc thông báo.
+được đóng gói trong `SimulationEvent` (khởi tạo qua `SimulationEvent.Builder`), gồm những
+trường phù hợp như TID, transaction/checkpoint, `DriftResult`, vector hiển thị, tiến độ hoặc thông báo.
 Listener và event không phụ thuộc Swing.
 
 Các event trong luồng hiện tại:
@@ -473,15 +474,7 @@ application service với GUI**. Nó không tự tạo thread, pause/resume ho�
 worker. Những việc đó vẫn thuộc `SwingWorker` và `SimulationWorker`; do đó hai
 cơ chế bổ sung cho nhau chứ không thay thế nhau.
 
-#### 2.8.3. Kiểm chứng Strategy và Observer
-
-- `StrategyInjectionTest` kiểm tra engine nhận strategy qua constructor, gọi
-  đúng implementation và giữ hành vi API chuỗi tương thích.
-- `SimulationServiceEventTest` kiểm tra checkpoint/progress/drift/finish/error
-  events và việc hủy đăng ký listener.
-- `DatasetServiceTest` kiểm tra application service cho thao tác dataset.
-
-#### 2.8.4. Facade Pattern — đơn giản hóa truy cập dịch vụ ứng dụng
+#### 2.8.3. Facade Pattern — đơn giản hóa truy cập dịch vụ ứng dụng
 
 `SimulationFacade` cung cấp API cho GUI để liệt kê và kiểm định dataset, tạo
 `SimulationService`, mở transaction stream, ước lượng số giao dịch và xuất CSV.
@@ -490,15 +483,38 @@ lượng; các thao tác export trong GUI vẫn được xử lý riêng ở t�
 
 Facade phối hợp các service, không thay thế chúng: `DatasetService` tiếp tục
 thực hiện thao tác dataset; `SimulationService` parse và xử lý giao dịch, sau
-đó phát event; `HUDD_TDS` điều phối thuật toán và gọi ba Strategy. Reader trả
+đó phát event; `HUDD_TDS` điều phối thuật toán và gọi các Strategy. Reader trả
 về từ Facade vẫn do caller đóng. `DemoRunner` tiếp tục gọi engine trực tiếp,
-nên Facade hiện được dùng chủ yếu bởi GUI.
+nêu Facade hiện được dùng chủ yếu bởi GUI.
 
 `FacadePatternTest` kiểm tra dataset API, tạo service, xử lý giao dịch và nhận
 event checkpoint từ service do Facade tạo, cùng việc mở stream Running Example.
 Test này chạy độc lập với Swing nhưng không thay thế kiểm thử tương tác GUI.
 
-Các API Strategy/Observer/Facade và test tương ứng được mô tả ở đây theo source
+#### 2.8.4. Builder Pattern — khởi tạo đối tượng phức tạp an toàn và linh hoạt
+
+Hệ thống sở hữu các lớp cấu hình và payload phức tạp gồm nhiều thuộc tính bắt buộc
+và tùy chọn như `HUDD_TDS` và `SimulationEvent`. Trước khi áp dụng Builder:
+- `HUDD_TDS` có 5 constructor chồng chéo (*Telescoping Constructors*), dễ gây nhầm lẫn vị trí tham số.
+- `SimulationEvent` có constructor chứa nhiều tham số nullable tùy loại event.
+
+Mẫu **Builder Pattern** giải quyết bằng cách cung cấp Fluent API:
+- **`HUDD_TDS.Builder`**: Yêu cầu các tham số cốt lõi (`externalUtilities`, `minutil`, `interval`, `windowSize`) và cung cấp các hàm phương thức fluent để tùy biến `.alpha()`, `.huiMiner()`, `.globalDriftStrategy()`, `.localDriftStrategy()`. Hàm `.build()` chủ động kiểm tra validation (`minutil >= 0`, `interval > 0`) trước khi dựng instance.
+- **`SimulationEvent.Builder`**: Tạo đối tượng payload bất biến (immutable) với các thuộc tính ngữ cảnh tùy chọn (`.checkpoint()`, `.driftResult()`, `.progress()`, `.message()`).
+
+`BuilderPatternTest` kiểm tra việc khởi tạo mặc định/tùy chỉnh qua Builder, bắt lỗi validation tham số sai và dựng event linh hoạt.
+
+#### 2.8.5. Kiểm chứng bốn mẫu thiết kế
+
+- `StrategyInjectionTest` kiểm tra engine nhận strategy qua constructor/builder, gọi
+  đúng implementation và giữ hành vi API chuỗi tương thích.
+- `SimulationServiceEventTest` kiểm tra checkpoint/progress/drift/finish/error
+  events và việc hủy đăng ký listener.
+- `FacadePatternTest` kiểm tra dataset API, tạo service và event checkpoint.
+- `BuilderPatternTest` kiểm tra khởi tạo Engine và Event qua Fluent API cùng validation tham số.
+- `DatasetServiceTest` kiểm tra application service cho thao tác dataset.
+
+Các API Strategy/Observer/Facade/Builder và test tương ứng được mô tả ở đây theo source
 hiện tại. Việc có các pattern này không đồng nghĩa toàn hệ thống đã dùng kiến trúc
 plug-in/module: `DatasetService` vẫn gọi trực tiếp data implementations;
 `TransactionParser` và `UtilityMetrics` còn là utility API; chưa có

@@ -40,20 +40,21 @@ Facade trả về `BufferedReader`; caller sở hữu reader và phải đóng r
 bằng try-with-resources. `SimulationFacade` hiện được GUI sử dụng; `DemoRunner`
 vẫn gọi engine trực tiếp.
 
-## Quan hệ với Strategy và Observer
+## Quan hệ với Strategy, Observer và Builder
 
-Ba mẫu thiết kế có phạm vi riêng và nối tiếp nhau trong luồng mô phỏng:
+Bốn mẫu thiết kế có phạm vi riêng và nối tiếp nhau trong luồng mô phỏng:
 
 1. **Facade** đơn giản hóa cách GUI truy cập dịch vụ ứng dụng.
 2. **Strategy** cho phép `HUDD_TDS` ủy quyền HUI mining, global drift và local
    drift qua ba interface có thể tiêm phụ thuộc.
 3. **Observer** cho phép `SimulationService` gửi event đến listener mà không
    phụ thuộc trực tiếp vào Swing.
+4. **Builder** giúp khởi tạo `HUDD_TDS` Engine và `SimulationEvent` payload an toàn, an toàn kiểu dữ liệu và linh hoạt.
 
 Facade tạo `SimulationService`, nhưng không thay thế Observer. Service vẫn
 phát event; GUI listener chuyển event qua `SwingWorker.publish()` để cập nhật
-component trên EDT. Tương tự, Facade không thay thế Strategy: engine vẫn chọn
-các implementation mặc định hoặc nhận implementation được tiêm qua constructor
+component trên EDT. Tương tự, Facade không thay thế Strategy hay Builder: engine vẫn chọn
+các implementation mặc định hoặc nhận implementation được tiêm qua constructor / Builder
 của `HUDD_TDS`.
 
 ## Kiểm thử

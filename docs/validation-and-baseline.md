@@ -2,7 +2,7 @@
 
 ## Lần xác minh code gần nhất đã ghi nhận
 
-Trong lượt đồng bộ ba mẫu thiết kế, toàn bộ tệp Java hiện có trong `src` và
+Trong lượt đồng bộ bốn mẫu thiết kế, toàn bộ tệp Java hiện có trong `src` và
 `test` được biên dịch bằng `javac` vào `out`. Các runner `main` độc lập sau trả
 mã thoát 0:
 
@@ -12,12 +12,13 @@ mã thoát 0:
 | `test.StrategyInjectionTest` | Tiêm/ủy quyền Strategy và API drift cũ/có kiểu | ĐẠT |
 | `test.SimulationServiceEventTest` | Event có kiểu, tiến độ, hoàn tất/lỗi, hủy listener | ĐẠT |
 | `test.FacadePatternTest` | Discovery/validation, tạo service, xử lý giao dịch, event checkpoint và mở stream qua Facade | ĐẠT |
+| `test.BuilderPatternTest` | Khởi tạo Engine và Event qua Builder, validate tham số biên và Fluent API | ĐẠT |
 | `test.DatasetServiceTest` | Ranh giới ứng dụng cho tìm/đọc/kiểm định tập dữ liệu | ĐẠT |
 | `test.DataLayerTest` | Parser, investment, tìm tập dữ liệu và kiểm định | ĐẠT |
 | `test.BaselineRunner` | Running Example dựng sẵn gồm bốn giao dịch | ĐẠT |
 | `test.EndToEndChessRunner` | Chạy end-to-end trên tập Chess | ĐẠT |
 
-`StrategyInjectionTest`, `SimulationServiceEventTest`, `FacadePatternTest`,
+`StrategyInjectionTest`, `SimulationServiceEventTest`, `FacadePatternTest`, `BuilderPatternTest`,
 `DatasetServiceTest`, `DataLayerTest` và `FinalValidationSuite` đã được chạy
 trong cùng lượt xác minh sau khi biên dịch. `FacadePatternTest` kiểm tra luồng
 tích hợp từ service do Facade tạo đến event checkpoint; nó không kiểm thử GUI.
