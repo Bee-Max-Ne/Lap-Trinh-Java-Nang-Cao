@@ -89,6 +89,104 @@ public class HUDD_TDS {
         this.traceEachTransaction = false;
     }
 
+    public HUDD_TDS(Builder builder) {
+        this.minutil = builder.minutil;
+        this.interval = builder.interval;
+        this.windowSize = builder.windowSize;
+        this.alphaConfidence = builder.alphaConfidence;
+        this.memory = new ArrayList<>();
+        this.checkpoints = new ArrayList<>();
+        
+        HUIItemsetMiner miner = builder.huiMiner;
+        if (miner == null) {
+            miner = builder.maxItemsetSize > 0
+                    ? new HUIDiscovery(builder.externalUtilities, builder.minutil, builder.windowSize, builder.maxItemsetSize)
+                    : new HUIDiscovery(builder.externalUtilities, builder.minutil, builder.windowSize);
+        }
+        this.huiMiner = miner;
+        
+        this.globalDriftDetector = builder.globalDriftDetector != null
+                ? builder.globalDriftDetector
+                : new GlobalDriftDetector(builder.alphaConfidence, 1.0);
+                
+        this.localDriftDetector = builder.localDriftDetector != null
+                ? builder.localDriftDetector
+                : new LocalDriftDetector(builder.alphaConfidence, 100.0, builder.windowSize);
+                
+        this.traceListener = null;
+        this.traceEachTransaction = false;
+    }
+
+    /**
+     * Builder Pattern for clean, step-by-step HUDD-TDS configuration.
+     */
+    public static class Builder {
+        private Map<String, Double> externalUtilities = java.util.Collections.emptyMap();
+        private double minutil = 10.0;
+        private int interval = 1;
+        private int windowSize = 2;
+        private double alphaConfidence = 0.05;
+        private int maxItemsetSize = 0;
+        private HUIItemsetMiner huiMiner;
+        private GlobalDriftStrategy globalDriftDetector;
+        private LocalDriftStrategy localDriftDetector;
+
+        public Builder withExternalUtilities(Map<String, Double> externalUtilities) {
+            this.externalUtilities = externalUtilities != null ? externalUtilities : java.util.Collections.emptyMap();
+            return this;
+        }
+
+        public Builder withMinutil(double minutil) {
+            if (minutil < 0) throw new IllegalArgumentException("minutil must be non-negative");
+            this.minutil = minutil;
+            return this;
+        }
+
+        public Builder withInterval(int interval) {
+            if (interval <= 0) throw new IllegalArgumentException("interval must be positive");
+            this.interval = interval;
+            return this;
+        }
+
+        public Builder withWindowSize(int windowSize) {
+            if (windowSize <= 0) throw new IllegalArgumentException("windowSize must be positive");
+            this.windowSize = windowSize;
+            return this;
+        }
+
+        public Builder withAlphaConfidence(double alphaConfidence) {
+            if (alphaConfidence <= 0 || alphaConfidence > 1) {
+                throw new IllegalArgumentException("alphaConfidence must be in (0, 1]");
+            }
+            this.alphaConfidence = alphaConfidence;
+            return this;
+        }
+
+        public Builder withMaxItemsetSize(int maxItemsetSize) {
+            this.maxItemsetSize = maxItemsetSize;
+            return this;
+        }
+
+        public Builder withMiner(HUIItemsetMiner huiMiner) {
+            this.huiMiner = huiMiner;
+            return this;
+        }
+
+        public Builder withGlobalStrategy(GlobalDriftStrategy globalDriftDetector) {
+            this.globalDriftDetector = globalDriftDetector;
+            return this;
+        }
+
+        public Builder withLocalStrategy(LocalDriftStrategy localDriftDetector) {
+            this.localDriftDetector = localDriftDetector;
+            return this;
+        }
+
+        public HUDD_TDS build() {
+            return new HUDD_TDS(this);
+        }
+    }
+
     public List<Checkpoint> getCheckpoints() {
         return checkpoints;
     }

@@ -64,8 +64,14 @@ public class SimulationFacade {
         Map<String, Double> externalUtilities = datasetService.loadInvestmentTable(
                 datasetName, customInvestmentFile, isRunningExample);
 
-        HUDD_TDS engine = new HUDD_TDS(
-                externalUtilities, minutil, interval, windowSize, alphaConfidence, maxItemsetSize);
+        HUDD_TDS engine = new HUDD_TDS.Builder()
+                .withExternalUtilities(externalUtilities)
+                .withMinutil(minutil)
+                .withInterval(interval)
+                .withWindowSize(windowSize)
+                .withAlphaConfidence(alphaConfidence)
+                .withMaxItemsetSize(maxItemsetSize)
+                .build();
 
         return new SimulationService(engine);
     }

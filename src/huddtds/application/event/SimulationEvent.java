@@ -53,6 +53,112 @@ public final class SimulationEvent {
         this.localDriftMessage = localDriftMessage;
     }
 
+    public SimulationEvent(Builder builder) {
+        this.type = builder.type;
+        this.tid = builder.tid;
+        this.transaction = builder.transaction;
+        this.checkpoint = builder.checkpoint;
+        this.driftResult = builder.driftResult;
+        this.globalDrift = builder.globalDrift;
+        this.localDrift = builder.localDrift;
+        this.itemsetVectors = builder.itemsetVectors == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(builder.itemsetVectors));
+        this.totalEstimate = builder.totalEstimate;
+        this.speedTxPerSec = builder.speedTxPerSec;
+        this.message = builder.message;
+        this.globalDriftMessage = builder.globalDriftMessage;
+        this.localDriftMessage = builder.localDriftMessage;
+    }
+
+    /**
+     * Builder Pattern for clean SimulationEvent construction without long positional parameter lists.
+     */
+    public static class Builder {
+        private EventType type;
+        private int tid;
+        private Transaction transaction;
+        private Checkpoint checkpoint;
+        private DriftResult driftResult;
+        private DriftResult globalDrift;
+        private DriftResult localDrift;
+        private List<String> itemsetVectors;
+        private int totalEstimate;
+        private int speedTxPerSec;
+        private String message;
+        private String globalDriftMessage;
+        private String localDriftMessage;
+
+        public Builder withType(EventType type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder withTid(int tid) {
+            this.tid = tid;
+            return this;
+        }
+
+        public Builder withTransaction(Transaction transaction) {
+            this.transaction = transaction;
+            return this;
+        }
+
+        public Builder withCheckpoint(Checkpoint checkpoint) {
+            this.checkpoint = checkpoint;
+            return this;
+        }
+
+        public Builder withDriftResult(DriftResult driftResult) {
+            this.driftResult = driftResult;
+            return this;
+        }
+
+        public Builder withGlobalDrift(DriftResult globalDrift) {
+            this.globalDrift = globalDrift;
+            return this;
+        }
+
+        public Builder withLocalDrift(DriftResult localDrift) {
+            this.localDrift = localDrift;
+            return this;
+        }
+
+        public Builder withItemsetVectors(List<String> itemsetVectors) {
+            this.itemsetVectors = itemsetVectors;
+            return this;
+        }
+
+        public Builder withTotalEstimate(int totalEstimate) {
+            this.totalEstimate = totalEstimate;
+            return this;
+        }
+
+        public Builder withSpeedTxPerSec(int speedTxPerSec) {
+            this.speedTxPerSec = speedTxPerSec;
+            return this;
+        }
+
+        public Builder withMessage(String message) {
+            this.message = message;
+            return this;
+        }
+
+        public Builder withGlobalDriftMessage(String globalDriftMessage) {
+            this.globalDriftMessage = globalDriftMessage;
+            return this;
+        }
+
+        public Builder withLocalDriftMessage(String localDriftMessage) {
+            this.localDriftMessage = localDriftMessage;
+            return this;
+        }
+
+        public SimulationEvent build() {
+            return new SimulationEvent(this);
+        }
+    }
+
     public EventType getType() {
         return type;
     }

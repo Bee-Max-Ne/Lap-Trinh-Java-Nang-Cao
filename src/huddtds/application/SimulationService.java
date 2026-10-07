@@ -66,38 +66,73 @@ public class SimulationService {
         String globalMessage = formatGlobalDrift(globalDrift);
         String localMessage = formatLocalDrift(localDrift);
 
-        publish(new SimulationEvent(EventType.CHECKPOINT_CREATED, tid, transaction,
-                checkpoint, null, globalDrift, localDrift, itemsetVectors, 0, 0, null,
-                globalMessage, localMessage));
+        publish(new SimulationEvent.Builder()
+                .withType(EventType.CHECKPOINT_CREATED)
+                .withTid(tid)
+                .withTransaction(transaction)
+                .withCheckpoint(checkpoint)
+                .withGlobalDrift(globalDrift)
+                .withLocalDrift(localDrift)
+                .withItemsetVectors(itemsetVectors)
+                .withGlobalDriftMessage(globalMessage)
+                .withLocalDriftMessage(localMessage)
+                .build());
         if (globalDrift.isDetected()) {
-            publish(new SimulationEvent(EventType.GLOBAL_DRIFT, tid, transaction,
-                    checkpoint, globalDrift, globalDrift, localDrift, itemsetVectors, 0, 0,
-                    globalMessage, globalMessage, localMessage));
+            publish(new SimulationEvent.Builder()
+                    .withType(EventType.GLOBAL_DRIFT)
+                    .withTid(tid)
+                    .withTransaction(transaction)
+                    .withCheckpoint(checkpoint)
+                    .withDriftResult(globalDrift)
+                    .withGlobalDrift(globalDrift)
+                    .withLocalDrift(localDrift)
+                    .withItemsetVectors(itemsetVectors)
+                    .withMessage(globalMessage)
+                    .withGlobalDriftMessage(globalMessage)
+                    .withLocalDriftMessage(localMessage)
+                    .build());
         }
         if (localDrift.isDetected()) {
-            publish(new SimulationEvent(EventType.LOCAL_DRIFT, tid, transaction,
-                    checkpoint, localDrift, globalDrift, localDrift, itemsetVectors, 0, 0,
-                    localMessage, globalMessage, localMessage));
+            publish(new SimulationEvent.Builder()
+                    .withType(EventType.LOCAL_DRIFT)
+                    .withTid(tid)
+                    .withTransaction(transaction)
+                    .withCheckpoint(checkpoint)
+                    .withDriftResult(localDrift)
+                    .withGlobalDrift(globalDrift)
+                    .withLocalDrift(localDrift)
+                    .withItemsetVectors(itemsetVectors)
+                    .withMessage(localMessage)
+                    .withGlobalDriftMessage(globalMessage)
+                    .withLocalDriftMessage(localMessage)
+                    .build());
         }
         return transaction;
     }
 
     public void publishProgress(int tid, int totalEstimate, int speedTxPerSec) {
-        publish(new SimulationEvent(EventType.TRANSACTION_PROCESSED, tid, null,
-                null, null, null, null, null, totalEstimate, speedTxPerSec, null, null, null));
+        publish(new SimulationEvent.Builder()
+                .withType(EventType.TRANSACTION_PROCESSED)
+                .withTid(tid)
+                .withTotalEstimate(totalEstimate)
+                .withSpeedTxPerSec(speedTxPerSec)
+                .build());
     }
 
     public void finish(int tid) {
-        publish(new SimulationEvent(EventType.SIMULATION_FINISHED, tid, null,
-                null, null, null, null, null, 0, 0, null, null, null));
+        publish(new SimulationEvent.Builder()
+                .withType(EventType.SIMULATION_FINISHED)
+                .withTid(tid)
+                .build());
     }
 
     public void reportError(Throwable error, int tid) {
         Throwable reportedError = Objects.requireNonNull(error, "error");
-        publish(new SimulationEvent(EventType.SIMULATION_ERROR, tid, null,
-                null, null, null, null, null, 0, 0,
-                reportedError.getClass().getSimpleName() + ": " + reportedError.getMessage(),
-                null, null));
+        publish(new SimulationEvent.Builder()
+                .withType(EventType.SIMULATION_ERROR)
+                .withTid(tid)
+                .withMessage(reportedError.getClass().getSimpleName() + ": " + reportedError.getMessage())
+                .build());
     }
 
     private void publish(SimulationEvent event) {
