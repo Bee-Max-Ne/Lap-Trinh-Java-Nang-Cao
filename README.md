@@ -648,3 +648,7 @@ thư mục gốc sau khi biên dịch:
 Kiểm tra exit code và đầu ra của từng runner; không nên xem benchmark toàn bộ là
 unit test nhanh. GUI cần môi trường desktop để smoke test tương tác; lệnh biên
 dịch chỉ xác nhận GUI compile được, không xác nhận hành vi hiển thị.
+Vẽ sơ đồ quy trình
+Chi tiết quy trình, nêu rõ pharse(inout, output)
+Giới thiệu các mẫu partern đã triển khai 
+kết quả chạy partern
