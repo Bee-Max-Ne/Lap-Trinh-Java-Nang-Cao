@@ -262,7 +262,7 @@ public class ChartPanel extends JPanel {
             g2.setColor(new Color(100, 116, 139));
             String label = (metricMode == MetricMode.HUI_COUNT)
                     ? String.format(Locale.US, "%.0f", val)
-                    : String.format(Locale.US, "%.3g", val);
+                    : formatYAxisValue(val);
             g2.drawString(label, 6, y + 4);
         }
 
@@ -436,5 +436,22 @@ public class ChartPanel extends JPanel {
         }
         double ratio = ((double) tid - firstTid) / ((double) lastTid - firstTid);
         return paddingLeft + (int) Math.round(ratio * plotWidth);
+    }
+
+    static String formatYAxisValue(double val) {
+        double absVal = Math.abs(val);
+        if (absVal >= 1_000_000) {
+            return String.format(Locale.US, "%.2fM", val / 1_000_000.0);
+        } else if (absVal >= 10_000) {
+            return String.format(Locale.US, "%.1fK", val / 1_000.0);
+        } else if (absVal >= 1_000) {
+            return String.format(Locale.US, "%.0f", val);
+        } else if (absVal >= 10) {
+            return String.format(Locale.US, "%.1f", val);
+        } else if (absVal >= 0.01 || val == 0.0) {
+            return String.format(Locale.US, "%.2f", val);
+        } else {
+            return String.format(Locale.US, "%.3g", val);
+        }
     }
 }

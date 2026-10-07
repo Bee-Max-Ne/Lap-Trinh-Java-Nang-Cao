@@ -9,9 +9,10 @@ nguồn trong kho dự án, không phải bản thiết kế kiến trúc mục 
 | Chủ đề | Tài liệu |
 |---|---|
 | Kiến trúc hệ thống và quan hệ phụ thuộc giữa các gói | [architecture.md](./architecture.md) |
-| Ba mẫu Strategy, Observer và Facade | [design-patterns.md](./design-patterns.md) |
+| Bốn mẫu Strategy, Observer, Facade và Builder | [design-patterns.md](./design-patterns.md) |
 | Kịch bản thuyết trình chi tiết: sơ đồ, vị trí, luồng chạy, kết quả và câu hỏi bảo vệ | [design-patterns-presentation.md](./design-patterns-presentation.md) |
 | Giải thích riêng về Facade | [Facade_Pattern_Explanation.md](./Facade_Pattern_Explanation.md) |
+| Giải thích riêng về Builder | [Builder_Pattern_Explanation.md](./Builder_Pattern_Explanation.md) |
 | Thuật toán và luồng dữ liệu giao dịch | [algorithm-and-data-flow.md](./algorithm-and-data-flow.md) |
 | Luồng sự kiện và GUI | [event-and-gui-flow.md](./event-and-gui-flow.md) |
 | Kết quả kiểm thử, benchmark, baseline và xác minh cuối | [validation-and-baseline.md](./validation-and-baseline.md) |
@@ -20,10 +21,10 @@ nguồn trong kho dự án, không phải bản thiết kế kiến trúc mục 
 ## Tình trạng xác minh
 
 - Lần biên dịch `javac` gần nhất trên toàn bộ source/test cùng các kiểm thử
-  Strategy, Observer, Facade và regression chọn lọc đều thành công; xem
+  Strategy, Observer, Facade, Builder và regression chọn lọc đều thành công; xem
   [validation-and-baseline.md](./validation-and-baseline.md).
-- `StrategyInjectionTest`, `SimulationServiceEventTest` và `FacadePatternTest`
-  lần lượt kiểm tra ba Strategy, Observer và Facade ở mức engine/application.
+- `StrategyInjectionTest`, `SimulationServiceEventTest`, `FacadePatternTest` và `BuilderPatternTest`
+  lần lượt kiểm tra bốn mẫu thiết kế Strategy, Observer, Facade và Builder ở mức engine/application.
   Các kiểm tra đó không thay thế GUI smoke test đầy đủ.
 - Kết quả Running Example và các kết quả Chess được chọn khớp với lần đối chiếu
   phiên bản lịch sử đã ghi nhận.

@@ -1,9 +1,10 @@
-# Ba mẫu thiết kế trong HUDD-TDS
+# Bốn mẫu thiết kế trong HUDD-TDS
 
-Mã nguồn hiện áp dụng trực tiếp ba mẫu thiết kế: **Strategy** trong bộ điều
-phối thuật toán, **Observer** trong dịch vụ mô phỏng và **Facade** tại ranh
-giới giữa GUI với các dịch vụ ứng dụng. Mỗi mẫu có một trách nhiệm riêng;
-không thêm pattern chỉ để trang trí kiến trúc.
+Mã nguồn hiện áp dụng trực tiếp bốn mẫu thiết kế: **Strategy** trong bộ điều
+phối thuật toán, **Observer** trong dịch vụ mô phỏng, **Facade** tại ranh giới
+giữa GUI với các dịch vụ ứng dụng, và **Builder** trong khởi tạo các đối tượng
+phức tạp. Mỗi mẫu có một trách nhiệm riêng; không thêm pattern chỉ để trang trí
+kiến trúc.
 
 ## Strategy
 
@@ -176,6 +177,48 @@ Running Example. Kiểm thử này xác nhận đường đi Facade → service 
 mức ứng dụng; nó không kiểm thử tương tác Swing runtime. Xem
 [FacadePatternTest.java](../test/FacadePatternTest.java).
 
+## Builder
+
+### Vì sao Builder phù hợp?
+
+Trong hệ thống `HUDD-TDS`, các đối tượng trung tâm như `HUDD_TDS` (Engine) và
+`SimulationEvent` (Payload sự kiện) có cấu hình gồm nhiều thuộc tính bắt buộc và
+tùy chọn (như `alpha`, các `Strategy` miner/drift, hoặc các trường sự kiện
+`checkpoint`, `driftResult`, `progress`, `message`).
+
+Trước khi có Builder Pattern:
+- `HUDD_TDS` mắc lỗi *Telescoping Constructors* khi có quá nhiều constructor chồng
+  chồng lên nhau, dễ gây nhầm lẫn vị trí tham số.
+- `SimulationEvent` có constructor dài với các tham số nullable, dễ sai sót khi
+  truyền chuỗi tham số kiểu dữ liệu giống nhau.
+
+Mẫu **Builder Pattern** giúp:
+1. Tách biệt quá trình xây dựng đối tượng phức tạp khỏi biểu diễn nội bộ.
+2. Kiểm tra tính hợp lệ (validation) của tham số (ví dụ: `minutil >= 0`, `interval > 0`)
+   trước khi khởi tạo đối tượng.
+3. Cung cấp Fluent API dạng `.builder().setA(...).setB(...).build()` giúp mã nguồn rõ
+   ràng, dễ đọc và tự giải thích.
+
+### Phạm vi hiện thực
+
+1. **`HUDD_TDS.Builder`**:
+   - Yêu cầu các tham số bắt buộc trong constructor của Builder (`externalUtilities`, `minutil`, `interval`, `windowSize`).
+   - Cung cấp các phương thức fluent: `.alpha(double)`, `.huiMiner(HUIItemsetMiner)`, `.globalDriftStrategy(GlobalDriftStrategy)`, `.localDriftStrategy(LocalDriftStrategy)`.
+   - Phương thức `.build()` kiểm tra validation hợp lệ trước khi tạo instance `HUDD_TDS`.
+
+2. **`SimulationEvent.Builder`**:
+   - Yêu cầu tham số cốt lõi (`EventType`, `tid`).
+   - Cung cấp các phương thức fluent: `.transaction(Transaction)`, `.checkpoint(Checkpoint)`, `.driftResult(DriftResult)`, `.progress(double)`, `.message(String)`.
+   - Phương thức `.build()` tạo đối tượng `SimulationEvent` bất biến và an toàn.
+
+### Kiểm chứng
+
+`BuilderPatternTest` kiểm tra khởi tạo `HUDD_TDS` với cấu hình mặc định và tùy chỉnh,
+bắt lỗi `IllegalArgumentException` khi truyền tham số không hợp lệ, và xây dựng
+`SimulationEvent` linh hoạt cho nhiều loại sự kiện.
+Xem [BuilderPatternTest.java](../test/BuilderPatternTest.java) và tài liệu chi tiết
+[Builder_Pattern_Explanation.md](./Builder_Pattern_Explanation.md).
+
 ## Kiểm chứng tổng hợp
 
 | Mẫu | Kiểm thử chính | Phạm vi xác nhận |
@@ -183,6 +226,7 @@ mức ứng dụng; nó không kiểm thử tương tác Swing runtime. Xem
 | Strategy | `StrategyInjectionTest` | Tiêm đủ ba contract, xác nhận delegation và API drift legacy/typed |
 | Observer | `SimulationServiceEventTest` | Loại/payload event, phát hiện drift, progress, finish, error và gỡ listener |
 | Facade | `FacadePatternTest` | Truy cập dataset, tạo/chạy service, event checkpoint và mở stream |
+| Builder | `BuilderPatternTest` | Khởi tạo engine/event qua Builder, validate tham số biên và fluent API |
 
 Các kiểm thử trên xác nhận hành vi ở mức Java service/engine. Chúng không thay
 thế cho GUI smoke test đầy đủ hay benchmark trên toàn bộ dữ liệu.

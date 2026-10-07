@@ -32,9 +32,10 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 ├── docs/
 │   ├── README.md                       # Mục lục tài liệu hệ thống
 │   ├── architecture.md                 # Kiến trúc và dependency
-│   ├── design-patterns.md              # Strategy, Observer và Facade
-│   ├── design-patterns-presentation.md # Kịch bản trình bày chi tiết ba mẫu
+│   ├── design-patterns.md              # Strategy, Observer, Facade và Builder
+│   ├── design-patterns-presentation.md # Kịch bản trình bày chi tiết các mẫu
 │   ├── Facade_Pattern_Explanation.md   # Phạm vi và cách dùng Facade hiện tại
+│   ├── Builder_Pattern_Explanation.md  # Phạm vi và cách dùng Builder hiện tại
 │   ├── algorithm-and-data-flow.md      # Thuật toán và luồng transaction
 │   ├── event-and-gui-flow.md           # Luồng sự kiện, GUI, EDT và giới hạn kiểm thử
 │   ├── validation-and-baseline.md      # Kiểm thử, benchmark, baseline, xác minh cuối
@@ -88,6 +89,7 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
     ├── StrategyInjectionTest.java
     ├── SimulationServiceEventTest.java
     ├── FacadePatternTest.java
+    ├── BuilderPatternTest.java
     ├── ChartPanelTest.java
     └── DatasetServiceTest.java
 ```
@@ -653,6 +655,10 @@ thư mục gốc sau khi biên dịch:
   ```powershell
   java -cp out test.FacadePatternTest
   ```
+- **Smoke test Builder pattern khởi tạo engine và event**:
+  ```powershell
+  java -cp out test.BuilderPatternTest
+  ```
 - **Kiểm tra thứ tự TID và hiển thị ChartPanel**:
   ```powershell
   java -cp out huddtds.demo.ChartPanelTest
@@ -685,7 +691,26 @@ thư mục gốc sau khi biên dịch:
 Kiểm tra exit code và đầu ra của từng runner; không nên xem benchmark toàn bộ là
 unit test nhanh. GUI cần môi trường desktop để smoke test tương tác; lệnh biên
 dịch chỉ xác nhận GUI compile được, không xác nhận hành vi hiển thị.
-Vẽ sơ đồ quy trình
-Chi tiết quy trình, nêu rõ pharse(inout, output)
-Giới thiệu các mẫu partern đã triển khai 
-kết quả chạy partern
+
+---
+
+## 5. Tổng Quan Các Mẫu Thiết Kế Đã Triển Khai (Design Patterns)
+
+Hệ thống **HUDD-TDS** áp dụng 4 mẫu thiết kế chính nhằm đảm bảo tính linh hoạt, dễ mở rộng, kiểm thử độc lập và tuân thủ các nguyên lý SOLID:
+
+### 5.1. Bảng Tóm Tắt 4 Mẫu Thiết Kế
+
+| Mẫu Thiết Kế | Thành phần triển khai chính | Mục đích & Giải pháp | Kiểm thử xác minh |
+|---|---|---|---|
+| **Strategy** | `HUIItemsetMiner`, `GlobalDriftStrategy`, `LocalDriftStrategy` | Cho phép thay đổi thuật toán mining (TWU/HUI) và thuật toán phát hiện drift (DIS_HS, local overlap) độc lập với Engine điều phối `HUDD_TDS`. | `test.StrategyInjectionTest` |
+| **Observer** | `SimulationService`, `SimulationListener`, `SimulationEvent` | Tách rời logic mô phỏng dòng dữ liệu và xử lý thuật toán khỏi giao diện người dùng Swing GUI. GUI đăng ký làm Listener nhận event bất đồng bộ. | `test.SimulationServiceEventTest` |
+| **Facade** | `SimulationFacade` | Cung cấp điểm truy cập đơn giản (High-level API) phối hợp các service (`DatasetService`, `SimulationService`, `InvestmentLoader`) cho Swing GUI client. | `test.FacadePatternTest` |
+| **Builder** | `HUDD_TDS.Builder`, `SimulationEvent.Builder` | Giải quyết vấn đề Telescoping Constructors, quản lý tham số bắt buộc & tùy chọn linh hoạt, validate ràng buộc dữ liệu (`minutil >= 0`, `interval > 0`) trước khi dựng đối tượng. | `test.BuilderPatternTest` |
+
+### 5.2. Kết Quả Kiểm Thử & Xác Minh Chạy Pattern
+
+Tất cả các runner kiểm thử thiết kế (Design Pattern Unit Tests) đều chạy độc lập và trả về exit code 0:
+1. **`StrategyInjectionTest`**: Xác nhận tiêm phụ thuộc thành công cho 3 chiến lược miner, global drift và local drift.
+2. **`SimulationServiceEventTest`**: Xác nhận Publisher-Subscriber phát đúng loại event (`CHECKPOINT_CREATED`, `GLOBAL_DRIFT`, `LOCAL_DRIFT`, `PROGRESS`) với payload đầy đủ.
+3. **`FacadePatternTest`**: Xác nhận Client kết nối mượt mà qua Facade để nạp dataset, tạo service và mở transaction stream.
+4. **`BuilderPatternTest`**: Xác nhận khởi tạo Engine và Event thông qua Fluent API thành công, kiểm soát lỗi tham số không hợp lệ đúng như thiết kế.
