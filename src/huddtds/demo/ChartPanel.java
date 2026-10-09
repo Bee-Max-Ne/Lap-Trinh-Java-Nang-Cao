@@ -19,6 +19,7 @@ import javax.swing.JPanel;
  */
 public class ChartPanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    static final int MAX_RETAINED_CHECKPOINTS = 1000;
 
     public enum MetricMode {
         GLOBAL_DISTANCE("Khoảng cách toàn cục (DISHS)"),
@@ -77,6 +78,7 @@ public class ChartPanel extends JPanel {
         driftResults.clear();
         if (data != null) {
             checkpoints.addAll(sortCheckpointsByTid(data));
+            trimOldCheckpoints();
         }
         hoveredIndex = -1;
         repaint();
@@ -92,6 +94,7 @@ public class ChartPanel extends JPanel {
             if (isGlobalDrift) {
                 driftTids.add(cp.getTid());
             }
+            trimOldCheckpoints();
             repaint();
         }
     }
@@ -105,6 +108,7 @@ public class ChartPanel extends JPanel {
             driftTids.add(cp.getTid());
             driftResults.put(cp.getTid(), globalDrift);
         }
+        trimOldCheckpoints();
         repaint();
     }
 
@@ -128,6 +132,18 @@ public class ChartPanel extends JPanel {
         int insertionIndex = Collections.binarySearch(
                 checkpoints, checkpoint, Comparator.comparingInt(Checkpoint::getTid));
         checkpoints.add(insertionIndex < 0 ? -insertionIndex - 1 : insertionIndex, checkpoint);
+    }
+
+    private void trimOldCheckpoints() {
+        while (checkpoints.size() > MAX_RETAINED_CHECKPOINTS) {
+            int removedTid = checkpoints.remove(0).getTid();
+            driftTids.remove(removedTid);
+            driftResults.remove(removedTid);
+        }
+    }
+
+    int getRetainedCheckpointCount() {
+        return checkpoints.size();
     }
 
     private synchronized double getMetricValue(Checkpoint cp) {

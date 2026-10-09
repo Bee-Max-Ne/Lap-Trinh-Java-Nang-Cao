@@ -3,9 +3,16 @@
 ## Sự kiện mô phỏng
 
 `SimulationService` đảm nhiệm vai trò publisher trong API event của ứng dụng.
-Listener đăng ký bằng `addListener()` và hủy đăng ký bằng `removeListener()`.
-Khi phát, service duyệt danh sách listener và gọi
-`SimulationListener.onUpdate(event)` đồng bộ trên luồng gọi service.
+Listener có thể đăng ký bằng `addListener()`/`removeListener()` hoặc
+`subscribe()`. Cách thứ hai trả về `SimulationService.Subscription`, có thể
+đóng lặp an toàn để gỡ listener đúng một lần. GUI worker đóng subscription
+trong `done()`. Khi phát, service duyệt danh sách trong
+`CopyOnWriteArrayList` và gọi `SimulationListener.onUpdate(event)` đồng bộ trên
+luồng gọi service.
+
+Nếu một callback ném `RuntimeException`, publisher vẫn gọi các listener còn
+lại rồi ném lại exception đầu tiên; các lỗi phát sinh sau được gắn làm
+suppressed exceptions. Lỗi listener không bị nuốt.
 
 | Loại event | Thời điểm phát | Payload chính |
 |---|---|---|
@@ -40,6 +47,14 @@ EDT: người dùng nhấn RUN
 Vùng nhập Running Example được đọc khi xử lý RUN trên EDT và truyền cho worker
 dưới dạng `String`. Tác vụ nền dùng snapshot này thay vì đọc Swing component.
 
+Listener của worker ghi event `CHECKPOINT_CREATED` vào CSV bằng
+`CheckpointHistoryWriter` trước khi publish event tới GUI. Ghi file đồng bộ trên
+luồng worker; lỗi I/O làm phiên thất bại thay vì báo thành công. Event
+`GLOBAL_DRIFT`/`LOCAL_DRIFT` riêng không được publish vào hàng đợi GUI vì event
+checkpoint đã mang đủ hai kết quả. Hàng đợi được giới hạn 100 slot bằng
+`Semaphore`; khi EDT chậm worker chịu back-pressure, và `process()` giải phóng
+mỗi slot sau khi xử lý update.
+
 ## Các nút điều khiển vòng đời
 
 - **RUN:** kiểm tra parse số, đặt lại phần trình bày, chụp dữ liệu nhập tay, tạo
@@ -67,7 +82,17 @@ khiển hoạt động.
   đó. Drift là kết quả so sánh thống kê giữa các checkpoint, không phải điều
   kiện `DISHS > một ngưỡng`; tooltip hiển thị statistic và threshold để phân
   biệt mức DISHS với quyết định drift.
-- Menu xuất HUI CSV, Drift CSV, báo cáo tổng kết TXT và nhật ký xử lý TXT.
+- Engine/GUI giữ tối đa 1.000 checkpoint gần nhất trong RAM; hàng đợi cập nhật
+  Swing có giới hạn để tránh dồn nhiều event nặng khi EDT bận.
+- Toàn bộ checkpoint/HUI được ghi liên tục bởi `CheckpointHistoryWriter` vào
+  `logs/HUDD_TDS_Checkpoints_<thời_gian>.csv`. Menu xuất HUI CSV, Drift CSV,
+  báo cáo tổng kết TXT, nhật ký xử lý TXT và bản sao đầy đủ lịch sử checkpoint.
+  CSV bảng HUI/Drift đi qua `SimulationFacade.exportToCSV(...)`; lịch sử đầy đủ
+  được sao chép từ CSV phiên thay vì dựng lại từ các checkpoint còn trong RAM.
+- Nhật ký tiến trình được ghi UTF-8 vào
+  `logs/HUDD_TDS_Process_<thời_gian>.log`; trace được flush theo lô 50 thông
+  điệp. Vùng log trên UI được cắt gọn khi vượt 500.000 ký tự; file trên đĩa
+  không bị cắt theo giới hạn hiển thị.
 - Tùy chọn trace từng giao dịch và thanh trượt độ trễ.
 
 Đây là các chức năng đã được xác nhận qua source; không có nghĩa tất cả tương

@@ -73,12 +73,17 @@ flowchart TD
         MATH["UtilityMetrics"]
     end
 
+    subgraph Persistence["Ghi lịch sử"]
+        HISTORY["CheckpointHistoryWriter<br/>CSV UTF-8"]
+    end
+
     subgraph Domain["Tầng mô hình miền"]
         MODEL["Transaction / Element / Checkpoint / HighUtilityItemset / DriftResult / ItemsetVector"]
     end
 
     GUI --> FACADE
     GUI -. "đăng ký listener / nhận event" .-> SS
+    GUI --> HISTORY
     CLI --> ENGINE
     SS --> DATA
     SS --> ENGINE
@@ -96,7 +101,7 @@ flowchart TD
 | Gói | Trách nhiệm chính | Một số kiểu tiêu biểu |
 |---|---|---|
 | `huddtds.demo` | Giao diện Swing và chương trình minh họa dòng lệnh | `HUDD_TDS_GUI`, `ChartPanel`, `DemoRunner` |
-| `huddtds.application` | Dịch vụ ứng dụng cho dataset và mô phỏng | `DatasetService`, `SimulationService` |
+| `huddtds.application` | Dịch vụ dataset/mô phỏng, cấu hình mô phỏng và writer lịch sử GUI | `DatasetService`, `SimulationConfiguration`, `SimulationService`, `CheckpointHistoryWriter` |
 | `huddtds.application.facade` | Điểm truy cập đơn giản cho các thao tác ứng dụng mà GUI cần | `SimulationFacade` |
 | `huddtds.application.event` | Thông báo mô phỏng có kiểu dữ liệu rõ ràng | `EventType`, `SimulationEvent`, `SimulationListener` |
 | `huddtds.algorithm` | Điều phối luồng/checkpoint và các cài đặt thuật toán mặc định | `HUDD_TDS`, `HUIDiscovery`, `GlobalDriftDetector`, `LocalDriftDetector` |
@@ -132,11 +137,20 @@ HUDD_TDS
 algorithm / data / math ──> model
 ```
 
-GUI dùng `SimulationFacade` để truy cập các thao tác dataset và tạo/mở luồng
-mô phỏng. Facade trả về `SimulationService`; service gọi parser và engine bên
-trong, rồi phát sự kiện cho GUI listener. Facade không thay thế các service,
-không chứa thuật toán và không phải service chạy ở tiến trình riêng hay hệ
-thống nạp plugin.
+GUI dùng `SimulationFacade` để truy cập các thao tác dataset, tạo/mở luồng mô
+phỏng và xuất CSV bảng HUI/drift. `SimulationConfiguration.Builder` gom tham số
+và các Strategy tùy chọn; Facade chuyển chúng vào `HUDD_TDS.Builder`, rồi trả
+về `SimulationService`. Service gọi parser và engine bên trong, rồi phát sự
+kiện cho GUI listener. Facade không thay thế các service, không chứa thuật
+toán và không phải service chạy ở tiến trình riêng hay hệ thống nạp plugin.
+
+Khi chạy từ GUI, `SimulationWorker` đăng ký listener bằng `subscribe()` và đóng
+subscription trong `done()`.
+Listener ghi đồng bộ event `CHECKPOINT_CREATED` bằng `CheckpointHistoryWriter`
+vào CSV UTF-8 dưới `logs/`, đồng thời publish cập nhật cho SwingWorker. Writer
+ghi một dòng cho mỗi HUI và vẫn ghi một dòng `CHECKPOINT` nếu checkpoint không
+có HUI. Đây là luồng persistence của GUI; runner benchmark console không sử
+dụng writer này.
 
 ## Các ràng buộc kiến trúc thể hiện trong mã nguồn
 
@@ -149,6 +163,12 @@ thống nạp plugin.
   repository interface hay factory tổng quát cho nhiều nguồn dữ liệu.
 - API sự kiện không phụ thuộc Swing. `SwingWorker` và GUI chịu trách nhiệm chạy
   nền cũng như cập nhật component.
+- Engine và chart giữ tối đa 1.000 checkpoint gần nhất; bảng HUI/Drift được
+  dọn theo TID của checkpoint hết hạn. Hàng đợi cập nhật GUI được giới hạn 100
+  slot bằng semaphore; đây là back-pressure, không phải bỏ ngẫu nhiên event.
+- Global detector giữ các tổng cộng dồn/cut point thay vì toàn bộ danh sách
+  observation; lịch sử checkpoint/HUI đầy đủ chỉ được giữ ngoài RAM trong file
+  CSV do GUI tạo.
 - Các đối tượng model được dùng chung giữa nhiều tầng. Java module chưa được
   dùng để áp đặt ranh giới giữa các gói.
 - Các phương thức drift dạng chuỗi cũ vẫn được giữ để tương thích; application

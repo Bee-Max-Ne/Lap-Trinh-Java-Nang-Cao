@@ -183,7 +183,32 @@ public final class SimulationEvent {
 
         /** Khởi tạo đối tượng SimulationEvent hoàn chỉnh */
         public SimulationEvent build() {
+            if (type == null) {
+                throw new IllegalStateException("Event type is required");
+            }
+            if (tid < 0) {
+                throw new IllegalStateException("Event TID must not be negative");
+            }
+            if (type == EventType.CHECKPOINT_CREATED && checkpoint == null) {
+                throw new IllegalStateException("Checkpoint event requires a checkpoint");
+            }
+            if (type == EventType.GLOBAL_DRIFT
+                    && !isDetectedDrift(driftResult, DriftResult.DriftType.GLOBAL_DRIFT)) {
+                throw new IllegalStateException("Global drift event requires a detected global drift result");
+            }
+            if (type == EventType.LOCAL_DRIFT
+                    && !isDetectedDrift(driftResult, DriftResult.DriftType.LOCAL_DRIFT)) {
+                throw new IllegalStateException("Local drift event requires a detected local drift result");
+            }
+            if (type == EventType.TRANSACTION_PROCESSED
+                    && (totalEstimate < 0 || speedTxPerSec < 0)) {
+                throw new IllegalStateException("Progress metadata must not be negative");
+            }
             return new SimulationEvent(this);
+        }
+
+        private boolean isDetectedDrift(DriftResult result, DriftResult.DriftType expectedType) {
+            return result != null && result.isDetected() && result.getType() == expectedType;
         }
     }
 

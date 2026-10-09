@@ -2,15 +2,16 @@ package huddtds.application.facade;
 
 import huddtds.algorithm.HUDD_TDS;
 import huddtds.application.DatasetService;
+import huddtds.application.SimulationConfiguration;
 import huddtds.application.SimulationService;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,20 +61,55 @@ public class SimulationFacade {
             double alphaConfidence,
             int maxItemsetSize) throws IOException {
 
-        boolean isRunningExample = datasetName != null && datasetName.contains("Running Example");
-        Map<String, Double> externalUtilities = datasetService.loadInvestmentTable(
-                datasetName, customInvestmentFile, isRunningExample);
-
-        // Khởi tạo thuật toán lõi HUDD_TDS thông qua Builder Pattern
-        HUDD_TDS engine = new HUDD_TDS.Builder()
-                .withExternalUtilities(externalUtilities)
+        return createSimulationService(SimulationConfiguration.builder(datasetName)
+                .withCustomInvestmentFile(customInvestmentFile)
                 .withMinutil(minutil)
                 .withInterval(interval)
                 .withWindowSize(windowSize)
                 .withAlphaConfidence(alphaConfidence)
                 .withMaxItemsetSize(maxItemsetSize)
-                .build();
+                .build());
+    }
 
+    /**
+     * Compatibility overload for callers that previously supplied a title.
+     * The title was not written by the original CSV export implementation.
+     */
+    public void exportToCSV(
+            File outputFile,
+            String title,
+            List<String[]> rows,
+            String[] headers) throws IOException {
+        exportToCSV(outputFile, rows, headers);
+    }
+
+    public SimulationService createSimulationService(
+            SimulationConfiguration configuration) throws IOException {
+        Objects.requireNonNull(configuration, "configuration");
+
+        String datasetName = configuration.getDatasetName();
+        boolean isRunningExample = datasetName.contains("Running Example");
+        Map<String, Double> externalUtilities = datasetService.loadInvestmentTable(
+                datasetName, configuration.getCustomInvestmentFile(), isRunningExample);
+
+        HUDD_TDS.Builder engineBuilder = new HUDD_TDS.Builder()
+                .withExternalUtilities(externalUtilities)
+                .withMinutil(configuration.getMinutil())
+                .withInterval(configuration.getInterval())
+                .withWindowSize(configuration.getWindowSize())
+                .withAlphaConfidence(configuration.getAlphaConfidence())
+                .withMaxItemsetSize(configuration.getMaxItemsetSize());
+        if (configuration.getHuiItemsetMiner() != null) {
+            engineBuilder.withMiner(configuration.getHuiItemsetMiner());
+        }
+        if (configuration.getGlobalDriftStrategy() != null) {
+            engineBuilder.withGlobalStrategy(configuration.getGlobalDriftStrategy());
+        }
+        if (configuration.getLocalDriftStrategy() != null) {
+            engineBuilder.withLocalStrategy(configuration.getLocalDriftStrategy());
+        }
+
+        HUDD_TDS engine = engineBuilder.build();
         return new SimulationService(engine);
     }
 
@@ -101,17 +137,32 @@ public class SimulationFacade {
     /**
      * Exports table data (HUI Log, Drift Log, or Summary Report) to a CSV file.
      */
-    public void exportToCSV(File outputFile, String title, List<String[]> rows, String[] headers) throws IOException {
+    public void exportToCSV(File outputFile, List<String[]> rows, String[] headers) throws IOException {
         Objects.requireNonNull(outputFile, "outputFile");
         Objects.requireNonNull(rows, "rows");
 
-        try (PrintWriter writer = new PrintWriter(new FileWriter(outputFile, StandardCharsets.UTF_8))) {
+        try (java.io.BufferedWriter writer = Files.newBufferedWriter(
+                outputFile.toPath(), StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
             if (headers != null && headers.length > 0) {
-                writer.println(String.join(",", headers));
+                writeCsvRow(writer, headers);
             }
             for (String[] row : rows) {
-                writer.println(String.join(",", row));
+                writeCsvRow(writer, Objects.requireNonNull(row, "CSV row"));
             }
         }
+    }
+
+    private static void writeCsvRow(java.io.BufferedWriter writer, String[] fields) throws IOException {
+        for (int index = 0; index < fields.length; index++) {
+            if (index > 0) {
+                writer.write(',');
+            }
+            String value = fields[index] == null ? "" : fields[index];
+            writer.write('"');
+            writer.write(value.replace("\"", "\"\""));
+            writer.write('"');
+        }
+        writer.newLine();
     }
 }

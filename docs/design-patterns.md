@@ -87,9 +87,15 @@ API chuỗi và API kiểu cho cùng một checkpoint.
 | Payload event | `SimulationEvent` | Mang TID và dữ liệu giao dịch, checkpoint, drift, tiến độ hoặc thông báo liên quan |
 | Subscriber GUI hiện tại | Listener do `HUDD_TDS_GUI.SimulationWorker` đăng ký | Chuyển thông báo vào luồng cập nhật giao diện của SwingWorker |
 
-Service quản lý đăng ký bằng `addListener()` và `removeListener()`, lưu listener
-trong `CopyOnWriteArrayList`. Khi phát event, service gọi từng listener đồng bộ
-trên chính luồng đang gọi service.
+`SimulationEvent` sao chép `itemsetVectors` thành danh sách không sửa được;
+các tham chiếu đến model bên trong payload không được deep-copy.
+
+Service quản lý đăng ký bằng `addListener()` / `removeListener()` và
+`subscribe()`, lưu listener trong `CopyOnWriteArrayList`. `subscribe()` trả về
+`Subscription` để hủy đăng ký idempotent theo vòng đời. Khi phát event, service
+gọi listener đồng bộ trên luồng đang gọi service. Nếu listener ném
+`RuntimeException`, service vẫn gọi listener còn lại rồi ném lỗi đầu tiên,
+đính kèm các lỗi tiếp theo làm suppressed exceptions; lỗi không bị nuốt.
 
 ### Các event
 
@@ -133,7 +139,8 @@ nhiệm concurrency; Observer đảm nhiệm thông báo tách rời.
 ### Kiểm chứng
 
 `SimulationServiceEventTest` kiểm tra payload và loại event, các thông báo
-drift/tiến độ/hoàn tất/lỗi và việc gỡ listener. Test này kiểm tra hành vi event
+drift/tiến độ/hoàn tất/lỗi, việc gỡ listener, subscription idempotent và dispatch
+tiếp khi một listener ném `RuntimeException`. Test này kiểm tra hành vi event
 của application service, không bao phủ toàn bộ tương tác thread của Swing
 runtime. Xem [SimulationServiceEventTest.java](../test/SimulationServiceEventTest.java).
 
@@ -163,18 +170,20 @@ dòng lệnh.
 - `estimateTransactionCount(...)`;
 - `exportToCSV(...)`.
 
-GUI hiện gọi Facade cho discovery, validation, tạo service, mở stream và ước
-lượng giao dịch. Các lệnh xuất của GUI hiện vẫn được xử lý tại GUI; sự hiện
-diện của `exportToCSV(...)` không có nghĩa phương thức đó đang được GUI gọi.
+GUI gọi Facade cho discovery, validation, tạo service, mở stream, ước lượng
+giao dịch và xuất CSV của bảng HUI/drift. `SimulationConfiguration` gom cấu hình
+dataset, tham số thuật toán và các Strategy tùy chọn trước khi Facade tạo service.
 Reader do Facade trả về vẫn thuộc trách nhiệm đóng của caller, thường bằng
-try-with-resources.
+try-with-resources. Các báo cáo TXT và thao tác sao chép log/lịch sử vẫn thuộc
+tầng trình bày vì chúng gắn với trạng thái giao diện hoặc tệp phiên hiện tại.
 
 ### Kiểm chứng
 
 `FacadePatternTest` kiểm tra discovery, validation, tạo service, xử lý một giao
 dịch qua service do Facade tạo và nhận event checkpoint, cùng việc mở stream
-Running Example. Kiểm thử này xác nhận đường đi Facade → service → Observer ở
-mức ứng dụng; nó không kiểm thử tương tác Swing runtime. Xem
+Running Example. Test còn kiểm chứng cấu hình Strategy qua Facade, luồng
+Observer cho drift và CSV UTF-8/escaping. Nó không kiểm thử tương tác Swing
+runtime. Xem
 [FacadePatternTest.java](../test/FacadePatternTest.java).
 
 ## Builder
@@ -196,26 +205,35 @@ Mẫu **Builder Pattern** giúp:
 1. Tách biệt quá trình xây dựng đối tượng phức tạp khỏi biểu diễn nội bộ.
 2. Kiểm tra tính hợp lệ (validation) của tham số (ví dụ: `minutil >= 0`, `interval > 0`)
    trước khi khởi tạo đối tượng.
-3. Cung cấp Fluent API dạng `.builder().setA(...).setB(...).build()` giúp mã nguồn rõ
+3. Cung cấp Fluent API dạng `.builder().withA(...).withB(...).build()` giúp mã nguồn rõ
    ràng, dễ đọc và tự giải thích.
 
 ### Phạm vi hiện thực
 
-1. **`HUDD_TDS.Builder`**:
-   - Yêu cầu các tham số bắt buộc trong constructor của Builder (`externalUtilities`, `minutil`, `interval`, `windowSize`).
-   - Cung cấp các phương thức fluent: `.alpha(double)`, `.huiMiner(HUIItemsetMiner)`, `.globalDriftStrategy(GlobalDriftStrategy)`, `.localDriftStrategy(LocalDriftStrategy)`.
-   - Phương thức `.build()` kiểm tra validation hợp lệ trước khi tạo instance `HUDD_TDS`.
+1. **`SimulationConfiguration.Builder`**:
+   - Tạo cấu hình bất biến cho Facade, gom dataset, investment file, tham số
+     khai phá và các Strategy tùy chọn.
+   - Kiểm tra tên dataset, `minutil`, `interval`, `windowSize`, alpha và giới
+     hạn itemset trước khi tạo service.
+2. **`HUDD_TDS.Builder`**:
+   - Có mặc định cho `externalUtilities`, `minutil`, `interval`, `windowSize`, alpha và giới hạn itemset.
+   - Cung cấp `.withExternalUtilities()`, `.withMinutil()`, `.withInterval()`, `.withWindowSize()`, `.withAlphaConfidence()`, `.withMaxItemsetSize()` và các setter tiêm miner/drift strategy.
+   - Các setter kiểm tra một số điều kiện đầu vào ngay khi được gọi; minutil phải hữu hạn/không âm, alpha phải trong `(0, 1)` và giới hạn itemset không âm.
 
-2. **`SimulationEvent.Builder`**:
-   - Yêu cầu tham số cốt lõi (`EventType`, `tid`).
-   - Cung cấp các phương thức fluent: `.transaction(Transaction)`, `.checkpoint(Checkpoint)`, `.driftResult(DriftResult)`, `.progress(double)`, `.message(String)`.
-   - Phương thức `.build()` tạo đối tượng `SimulationEvent` bất biến và an toàn.
+3. **`SimulationEvent.Builder`**:
+   - Có setter `with...` cho `type`, `tid`, `transaction`, `checkpoint`, ba trường drift, vector itemset, tiến độ/tốc độ và thông điệp.
+   - `.build()` yêu cầu `type`, TID không âm, checkpoint payload cho checkpoint event, đúng drift result cho event global/local và metadata tiến độ không âm.
+   - `itemsetVectors` được sao chép thành danh sách không sửa được; các tham chiếu model không được deep-copy.
 
 ### Kiểm chứng
 
-`BuilderPatternTest` kiểm tra khởi tạo `HUDD_TDS` với cấu hình mặc định và tùy chỉnh,
-bắt lỗi `IllegalArgumentException` khi truyền tham số không hợp lệ, và xây dựng
-`SimulationEvent` linh hoạt cho nhiều loại sự kiện.
+`BuilderPatternTest` kiểm tra khởi tạo `HUDD_TDS` với cấu hình mặc định và tùy
+chỉnh, xác nhận một số setter từ chối tham số ngoài phạm vi và xây dựng
+`SimulationEvent` qua fluent API. `FacadePatternTest` kiểm tra cấu hình
+`SimulationConfiguration` và việc chuyển các Strategy tới engine.
+`SimulationEvent.Builder` xác thực các trường cốt yếu cho loại event; constructor
+công khai nhận danh sách tham số vẫn giữ tương thích nhưng không áp dụng các
+điều kiện validation của Builder. Các trường tùy chọn còn lại do caller lựa chọn.
 Xem [BuilderPatternTest.java](../test/BuilderPatternTest.java) và tài liệu chi tiết
 [Builder_Pattern_Explanation.md](./Builder_Pattern_Explanation.md).
 
@@ -224,9 +242,9 @@ Xem [BuilderPatternTest.java](../test/BuilderPatternTest.java) và tài liệu c
 | Mẫu | Kiểm thử chính | Phạm vi xác nhận |
 |---|---|---|
 | Strategy | `StrategyInjectionTest` | Tiêm đủ ba contract, xác nhận delegation và API drift legacy/typed |
-| Observer | `SimulationServiceEventTest` | Loại/payload event, phát hiện drift, progress, finish, error và gỡ listener |
-| Facade | `FacadePatternTest` | Truy cập dataset, tạo/chạy service, event checkpoint và mở stream |
-| Builder | `BuilderPatternTest` | Khởi tạo engine/event qua Builder, validate tham số biên và fluent API |
+| Observer | `SimulationServiceEventTest` | Loại/payload event, subscription lifecycle, dispatch tiếp khi listener lỗi |
+| Facade | `FacadePatternTest` | Dataset, tạo service, event, Strategy injection và CSV export |
+| Builder | `BuilderPatternTest`, `FacadePatternTest` | Cấu hình engine/event/mô phỏng, validate tham số và fluent API |
 
 Các kiểm thử trên xác nhận hành vi ở mức Java service/engine. Chúng không thay
 thế cho GUI smoke test đầy đủ hay benchmark trên toàn bộ dữ liệu.

@@ -149,18 +149,10 @@ public class HUIDiscovery implements HUIItemsetMiner {
 
         for (int index = startIndex; index < itemList.size(); index++) {
             currentItems.add(itemList.get(index));
-            Set<String> candidate = new LinkedHashSet<>(currentItems);
             candidatesVisited++;
 
-            // Kiểm tra cận trên TWU của candidate trong window
-            double candidateUpperBound = calculateDecayedSubtreeUpperBound(candidate, window, currentTid);
-            if (candidateUpperBound >= minutil) {
+            if (evaluateCandidate(currentItems, window, currentTid, result)) {
                 candidatesEvaluated++;
-                HighUtilityItemset hui = calculateUtility(candidate, window, currentTid);
-                if (hui.getTotalUtility() >= minutil) {
-                    hui.setDistanceToRoot(UtilityMetrics.calculateDmoToRoot(hui));
-                    result.add(hui);
-                }
 
                 // Tiếp tục duyệt sâu nếu chưa vượt quá maxItemsetSize
                 if (maxItemsetSize <= 0 || currentItems.size() < maxItemsetSize) {
@@ -175,16 +167,20 @@ public class HUIDiscovery implements HUIItemsetMiner {
     }
 
     /**
-     * Cận trên tổng tiện ích của candidate và mọi tập mục con mở rộng từ nó trong cửa sổ.
+     * Đánh giá cận trên và utility của candidate trong cùng một lượt quét cửa sổ.
      */
-    private double calculateDecayedSubtreeUpperBound(
-            Set<String> targetSet,
+    private boolean evaluateCandidate(
+            List<String> candidateItems,
             List<Transaction> window,
-            int currentTid) {
-        double bound = 0.0;
+            int currentTid,
+            List<HighUtilityItemset> result) {
+        double upperBound = 0.0;
+        double totalUtility = 0.0;
+        double[] itemUtilities = new double[candidateItems.size()];
+
         for (Transaction tx : window) {
             boolean containsAll = true;
-            for (String item : targetSet) {
+            for (String item : candidateItems) {
                 if (!tx.containsItem(item)) {
                     containsAll = false;
                     break;
@@ -192,53 +188,33 @@ public class HUIDiscovery implements HUIItemsetMiner {
             }
             if (containsAll) {
                 int deltaTime = Math.max(0, currentTid - tx.getTid());
-                bound += tx.calculateTotalUtility(externalUtilities) * UtilityMetrics.decayFunction(deltaTime);
-            }
-        }
-        return bound;
-    }
+                double decay = UtilityMetrics.decayFunction(deltaTime);
+                upperBound += tx.calculateTotalUtility(externalUtilities) * decay;
 
-    private HighUtilityItemset calculateUtility(
-            Set<String> targetSet,
-            List<Transaction> window,
-            int currentTid) {
-
-        HighUtilityItemset hui = new HighUtilityItemset(targetSet);
-        double totalUtility = 0.0;
-
-        for (Transaction tx : window) {
-            boolean containsAll = true;
-            for (String item : targetSet) {
-                if (!tx.containsItem(item)) {
-                    containsAll = false;
-                    break;
+                for (int itemIndex = 0; itemIndex < candidateItems.size(); itemIndex++) {
+                    String item = candidateItems.get(itemIndex);
+                    double directUtility = tx.getUtility(item);
+                    double rawUtility = directUtility > 0.0
+                            ? directUtility
+                            : tx.getQuantity(item) * externalUtilities.getOrDefault(item, 1.0);
+                    double decayedUtility = rawUtility * decay;
+                    itemUtilities[itemIndex] += decayedUtility;
+                    totalUtility += decayedUtility;
                 }
-            }
-            if (!containsAll) {
-                continue;
-            }
-
-            int deltaTime = Math.max(0, currentTid - tx.getTid());
-            double decay = UtilityMetrics.decayFunction(deltaTime);
-
-            for (String item : targetSet) {
-                double rawUtility;
-                double directUtil = tx.getUtility(item);
-                if (directUtil > 0.0) {
-                    rawUtility = directUtil;
-                } else {
-                    int qty = tx.getQuantity(item);
-                    rawUtility = qty * externalUtilities.getOrDefault(item, 1.0);
-                }
-
-                double decayedUtil = rawUtility * decay;
-                hui.getItemUtilities().put(item,
-                        hui.getItemUtilities().getOrDefault(item, 0.0) + decayedUtil);
-                totalUtility += decayedUtil;
             }
         }
 
+        if (upperBound < minutil || totalUtility < minutil) {
+            return upperBound >= minutil;
+        }
+
+        HighUtilityItemset hui = new HighUtilityItemset(new LinkedHashSet<>(candidateItems));
         hui.setTotalUtility(totalUtility);
-        return hui;
+        for (int index = 0; index < candidateItems.size(); index++) {
+            hui.getItemUtilities().put(candidateItems.get(index), itemUtilities[index]);
+        }
+        hui.setDistanceToRoot(UtilityMetrics.calculateDmoToRoot(hui));
+        result.add(hui);
+        return true;
     }
 }

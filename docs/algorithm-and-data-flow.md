@@ -52,8 +52,23 @@ hạn. Dòng trống không được gán TID.
 ## Bộ nhớ luồng, checkpoint và HUI
 
 `HUDD_TDS.processTransaction()` thêm giao dịch vào bộ nhớ engine và giữ lại
-xấp xỉ tối đa ba lần `windowSize` theo ranh giới TID để phục vụ so sánh. Lịch
-sử được giữ lại này không phải cửa sổ dùng để khai phá.
+xấp xỉ tối đa ba lần `windowSize` theo ranh giới TID để phục vụ so sánh. Cụ thể,
+giao dịch đầu danh sách bị loại khi `TID <= currentTid - 3 * windowSize`. Lịch
+sử giao dịch được giữ lại này không phải cửa sổ dùng để khai phá.
+
+Engine chỉ giữ 1.000 checkpoint gần nhất cùng các HUI tương ứng trong RAM;
+`ChartPanel` giữ tối đa 1.000 checkpoint và GUI dọn các dòng bảng theo checkpoint
+hết hạn. Bộ phát hiện global giữ số quan sát, tổng cộng dồn, tổng tại cut point,
+reference sum và một observation gần nhất; trạng thái thống kê không cần lưu
+toàn bộ vector distance.
+
+Trong phiên GUI, `SimulationWorker` tạo
+`logs/HUDD_TDS_Checkpoints_<thời_gian>.csv`. Listener ghi mỗi HUI thành một dòng
+CSV; checkpoint không có HUI vẫn sinh một dòng `CHECKPOINT`. Bản ghi chứa TID,
+DIS_HS, số HUI, kết quả/thống kê/ngưỡng/hướng global-local, itemset, utility,
+Dmo và utility từng item. Writer UTF-8 escape dấu phẩy/ngoặc kép theo CSV và
+dùng tên file mới, không ghi đè phiên cũ. Đây là writer GUI, không phải cơ chế
+ghi của `FullBenchmarkSuite`.
 
 Tại checkpoint có `TID % interval == 0`, `HUIDiscovery` tạo cửa sổ khai phá:
 
@@ -62,9 +77,17 @@ Tại checkpoint có `TID % interval == 0`, `HUIDiscovery` tạo cửa sổ khai
 ```
 
 Đầu tiên, thuật toán tính TWU có suy giảm để lọc các item tiềm năng, sau đó
-sinh candidate đệ quy. Candidate có cận trên utility của nhánh thấp hơn
-`minutil` sẽ bị cắt tỉa. Các candidate còn lại được tính utility đầy đủ; giữ
-lại dưới dạng HUI nếu tổng utility đạt ít nhất `minutil`.
+sinh candidate đệ quy theo thứ tự item đã sắp xếp. Mỗi candidate được xét bằng
+một lượt duyệt cửa sổ: các giao dịch chứa candidate đóng góp vào cận trên
+`UB_d` và utility đầy đủ `U_d`. Nếu `UB_d < minutil`, nhánh bị cắt; nếu cận
+trên còn đạt nhưng `U_d < minutil`, không tạo HUI nhưng vẫn có thể tiếp tục mở
+rộng candidate. Chỉ candidate có `U_d >= minutil` được tạo thành
+`HighUtilityItemset` và nhận `D_mo`.
+
+```text
+UB_d(X) = Σ TU(T) * d(t - TID_T), với X ⊆ T
+U_d(X)  = Σ [Σ u(i,T), i ∈ X] * d(t - TID_T), với X ⊆ T
+```
 
 Hàm suy giảm trong `UtilityMetrics`:
 
@@ -83,12 +106,18 @@ của HUI tìm được. Giá trị đó được dùng làm quan sát cho globa
 
 ### Global drift
 
-`GlobalDriftDetector` có trạng thái. Lớp này lưu chuỗi khoảng cách checkpoint,
-duy trì cut point, tính trung bình hai nhóm cùng các cận Hoeffding, rồi so sánh
-độ chênh với ngưỡng. Khi phát hiện drift, lớp trả `DriftResult` có hướng, thống
-kê, ngưỡng và TID của checkpoint. `HUDD_TDS` truyền alpha cấu hình vào detector
-mặc định; các profile GUI dùng giá trị khác nhau, chẳng hạn `0.05` hoặc `0.10`.
-Trong code, alpha được hiểu là mức ý nghĩa, không phải phần trăm độ tin cậy.
+`GlobalDriftDetector` có trạng thái. Lớp này duy trì số quan sát, tổng cộng dồn
+và tổng tại cut point thay vì giữ chuỗi khoảng cách trong RAM. Hai trung bình
+được cập nhật theo thứ tự cộng của từng nhóm; detector vẫn tính các cận
+Hoeffding rồi so sánh độ chênh với ngưỡng. Khi phát hiện drift, lớp trả
+`DriftResult` có hướng, thống kê, ngưỡng và TID của checkpoint.
+`HUDD_TDS` truyền alpha cấu hình vào detector mặc định; các profile GUI dùng
+giá trị khác nhau, chẳng hạn `0.05` hoặc `0.10`. Trong code, alpha được hiểu là
+mức ý nghĩa, không phải phần trăm độ tin cậy.
+
+Các công thức trong `UtilityMetrics` yêu cầu `0 < alpha < 1`.
+`HUDD_TDS.Builder.withAlphaConfidence()` và `SimulationConfiguration.Builder`
+đều từ chối giá trị ngoài khoảng này trước khi tạo engine.
 
 Hàm ngưỡng trong `UtilityMetrics` thực hiện:
 
@@ -124,6 +153,15 @@ Detector mặc định nhận `windowSize` làm kích thước mẫu cho cả `n
 Giá trị đem so sánh là utility của itemset tại hai checkpoint; code không tái
 dựng các giá trị đó từ toàn bộ giao dịch trong hai mẫu.
 
+### Ý nghĩa của hai giới hạn lịch sử
+
+- `windowSize` giới hạn giao dịch đầu vào mà HUI miner khai phá tại checkpoint.
+- `MAX_RETAINED_CHECKPOINTS = 1000` giới hạn số checkpoint/HUI engine giữ để
+  tiếp tục so sánh và truy cập qua `getCheckpoints()`.
+- CSV trong GUI mới là lịch sử checkpoint/HUI đầy đủ trên đĩa. Benchmark
+  console hiện báo số đo của lượt chạy nhưng không ghi đầy đủ checkpoint vào
+  `CheckpointHistoryWriter`.
+
 ## Các tham số runtime chính
 
 | Tham số | Hành vi trong code |
@@ -134,6 +172,13 @@ dựng các giá trị đó từ toàn bộ giao dịch trong hai mẫu.
 | `alpha` | Mức ý nghĩa truyền vào kiểm định drift |
 | `maxItemsetSize` / GUI `Max Len` | Giá trị dương giới hạn độ dài; không dương không giới hạn độ sâu |
 | GUI `Max Tx` | Bằng 0 thì đọc hết; số dương giới hạn số giao dịch được xử lý |
+
+GUI gom các tham số qua `SimulationConfiguration.Builder`; Facade chuyển chúng
+và các Strategy tùy chọn vào `HUDD_TDS.Builder`. Hai Builder từ chối `minutil`
+âm/không hữu hạn, `interval` hoặc `windowSize` không dương, alpha ngoài
+`(0,1)` và `maxItemsetSize` âm. Giá trị `maxItemsetSize = 0` vẫn có nghĩa là
+không giới hạn độ sâu. Các constructor tương thích trực tiếp của engine được
+giữ riêng và không đi qua toàn bộ validation của Builder.
 
 Checkpoint dựa trên bội số TID; code không đợi cửa sổ đầy mới bắt đầu tạo
 checkpoint. Cần lưu ý semantics này khi đối chiếu với bài báo hoặc implementation

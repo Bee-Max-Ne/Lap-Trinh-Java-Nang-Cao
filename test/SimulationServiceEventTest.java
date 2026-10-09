@@ -65,6 +65,35 @@ public class SimulationServiceEventTest {
         int eventCount = events.size();
         service.finish(4);
         require(events.size() == eventCount, "Removed listeners should receive no future events");
+
+        List<EventType> observedAfterFailure = new ArrayList<>();
+        huddtds.application.event.SimulationListener failingListener = event -> {
+            throw new IllegalStateException("subscriber failed");
+        };
+        huddtds.application.event.SimulationListener laterListener =
+                event -> observedAfterFailure.add(event.getType());
+        service.addListener(failingListener);
+        service.addListener(laterListener);
+        try {
+            service.finish(5);
+            throw new AssertionError("Subscriber failures should be propagated");
+        } catch (IllegalStateException expected) {
+            require("subscriber failed".equals(expected.getMessage()),
+                    "The original subscriber failure should be preserved");
+        }
+        require(observedAfterFailure.contains(EventType.SIMULATION_FINISHED),
+                "A failing observer must not prevent dispatch to later observers");
+        service.removeListener(failingListener);
+        service.removeListener(laterListener);
+
+        SimulationService.Subscription subscription = service.subscribe(
+                event -> observedAfterFailure.add(event.getType()));
+        int observedBeforeUnsubscribe = observedAfterFailure.size();
+        subscription.close();
+        subscription.close();
+        service.finish(6);
+        require(observedAfterFailure.size() == observedBeforeUnsubscribe,
+                "Closing a subscription should unsubscribe idempotently");
     }
 
     private static void require(boolean condition, String message) {

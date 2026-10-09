@@ -59,9 +59,8 @@ flowchart TD
 > Bốn mẫu nằm ở các ranh giới khác nhau. Facade giúp GUI gọi nghiệp vụ ứng dụng
 > gọn hơn. Strategy cho engine lựa chọn/thay thế thuật toán HUI và phát hiện
 > drift. Observer chuyển kết quả từ service đến subscriber mà không để service
-> phụ thuộc Swing. Builder giúp khởi tạo engine và event payload an toàn, linh hoạt.
+> phụ thuộc Swing. Builder giúp khởi tạo engine và event payload rõ nghĩa; một số setter Engine kiểm tra phạm vi đầu vào, nhưng `build()` không validation tổng quát.
 > Chúng phối hợp trong cùng luồng xử lý nhưng không thay thế nhau.
-> trách nhiệm của nhau.
 
 ## 1. Strategy — thay đổi thuật toán mà giữ nguyên bộ điều phối
 
@@ -98,16 +97,16 @@ flowchart LR
 
 ### 1.3 Vị trí áp dụng
 
-| Vai trò | Lớp/interface |
-|---|---|
-| Context/bộ điều phối | [`HUDD_TDS.java`](../src/huddtds/algorithm/HUDD_TDS.java) |
-| Strategy khai phá HUI | [`HUIItemsetMiner.java`](../src/huddtds/algorithm/mining/HUIItemsetMiner.java) |
-| Strategy drift toàn cục | [`GlobalDriftStrategy.java`](../src/huddtds/algorithm/drift/GlobalDriftStrategy.java) |
-| Strategy drift cục bộ | [`LocalDriftStrategy.java`](../src/huddtds/algorithm/drift/LocalDriftStrategy.java) |
-| Implementation mặc định khai phá | [`HUIDiscovery.java`](../src/huddtds/algorithm/HUIDiscovery.java) |
-| Implementation mặc định global | [`GlobalDriftDetector.java`](../src/huddtds/algorithm/GlobalDriftDetector.java) |
-| Implementation mặc định local | [`LocalDriftDetector.java`](../src/huddtds/algorithm/LocalDriftDetector.java) |
-| Kiểm thử injection/delegation | [`StrategyInjectionTest.java`](../test/StrategyInjectionTest.java) |
+| Vai trò                             | Lớp/interface                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Context/bộ điều phối             | [`HUDD_TDS.java`](../src/huddtds/algorithm/HUDD_TDS.java)                             |
+| Strategy khai phá HUI               | [`HUIItemsetMiner.java`](../src/huddtds/algorithm/mining/HUIItemsetMiner.java)        |
+| Strategy drift toàn cục            | [`GlobalDriftStrategy.java`](../src/huddtds/algorithm/drift/GlobalDriftStrategy.java) |
+| Strategy drift cục bộ              | [`LocalDriftStrategy.java`](../src/huddtds/algorithm/drift/LocalDriftStrategy.java)   |
+| Implementation mặc định khai phá | [`HUIDiscovery.java`](../src/huddtds/algorithm/HUIDiscovery.java)                     |
+| Implementation mặc định global    | [`GlobalDriftDetector.java`](../src/huddtds/algorithm/GlobalDriftDetector.java)       |
+| Implementation mặc định local     | [`LocalDriftDetector.java`](../src/huddtds/algorithm/LocalDriftDetector.java)         |
+| Kiểm thử injection/delegation      | [`StrategyInjectionTest.java`](../test/StrategyInjectionTest.java)                    |
 
 ### 1.4 Cách hoạt động trong source
 
@@ -198,20 +197,21 @@ sequenceDiagram
 
 ### 2.3 Vị trí áp dụng
 
-| Vai trò | Lớp/interface |
-|---|---|
-| Publisher | [`SimulationService.java`](../src/huddtds/application/SimulationService.java) |
-| Contract observer | [`SimulationListener.java`](../src/huddtds/application/event/SimulationListener.java) |
-| Payload | [`SimulationEvent.java`](../src/huddtds/application/event/SimulationEvent.java) |
-| Loại event | [`EventType.java`](../src/huddtds/application/event/EventType.java) |
-| Subscriber giao diện và chuyển event về EDT | [`HUDD_TDS_GUI.java`](../src/huddtds/demo/HUDD_TDS_GUI.java) |
-| Kiểm thử event/đăng ký/hủy đăng ký | [`SimulationServiceEventTest.java`](../test/SimulationServiceEventTest.java) |
+| Vai trò                                        | Lớp/interface                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Publisher                                       | [`SimulationService.java`](../src/huddtds/application/SimulationService.java)         |
+| Contract observer                               | [`SimulationListener.java`](../src/huddtds/application/event/SimulationListener.java) |
+| Payload                                         | [`SimulationEvent.java`](../src/huddtds/application/event/SimulationEvent.java)       |
+| Loại event                                     | [`EventType.java`](../src/huddtds/application/event/EventType.java)                   |
+| Subscriber giao diện và chuyển event về EDT | [`HUDD_TDS_GUI.java`](../src/huddtds/demo/HUDD_TDS_GUI.java)                          |
+| Kiểm thử event/đăng ký/hủy đăng ký     | [`SimulationServiceEventTest.java`](../test/SimulationServiceEventTest.java)          |
 
 ### 2.4 Cách hoạt động trong source
 
 `SimulationService` giữ listener trong `CopyOnWriteArrayList`, cho phép
-`addListener()` và `removeListener()`. `processLine()` parse giao dịch rồi gọi
-engine. Nếu engine tạo checkpoint, service lấy kết quả global/local, tạo
+`addListener()`/`removeListener()` và `subscribe()`. `subscribe()` trả về
+subscription có thể đóng idempotent; GUI đóng subscription trong
+`SwingWorker.done()`. `processLine()` parse giao dịch rồi gọi engine. Nếu engine tạo checkpoint, service lấy kết quả global/local, tạo
 payload và phát:
 
 - `CHECKPOINT_CREATED`;
@@ -227,10 +227,15 @@ không tạo thread. Trong GUI, worker đăng ký listener và listener gọi
 trên Swing Event Dispatch Thread (EDT). Như vậy Observer giải quyết thông báo,
 còn SwingWorker đảm nhiệm chuyển luồng/cập nhật GUI an toàn.
 
+Nếu callback ném `RuntimeException`, service tiếp tục gọi các listener còn lại
+rồi ném lại lỗi đầu tiên; các lỗi listener khác được đính kèm dưới dạng
+suppressed exceptions. Lỗi không bị nuốt và có thể làm phiên mô phỏng thất bại.
+
 ### 2.5 Kết quả và bằng chứng
 
 - `SimulationServiceEventTest` kiểm tra transaction được parse/xử lý, checkpoint
-  event có transaction/checkpoint, progress metadata, event hoàn tất và lỗi.
+  event có transaction/checkpoint, progress metadata, event hoàn tất/lỗi,
+  subscription lifecycle và dispatch tiếp khi listener lỗi.
 - Test xác nhận cả event global/local drift có dữ liệu kiểu tương ứng.
 - Test gỡ listener rồi xác nhận listener đó không nhận event tiếp theo.
 - Trong lần build/regression gần nhất đã ghi nhận, biên dịch toàn bộ source/test
@@ -280,33 +285,34 @@ flowchart LR
 
 ### 3.3 Vị trí áp dụng
 
-| Vai trò | Lớp |
-|---|---|
-| Facade | [`SimulationFacade.java`](../src/huddtds/application/facade/SimulationFacade.java) |
-| Service dataset được Facade dùng | [`DatasetService.java`](../src/huddtds/application/DatasetService.java) |
-| Service xử lý stream/phát event | [`SimulationService.java`](../src/huddtds/application/SimulationService.java) |
-| Client Facade | [`HUDD_TDS_GUI.java`](../src/huddtds/demo/HUDD_TDS_GUI.java) |
-| Kiểm thử Facade và luồng event | [`FacadePatternTest.java`](../test/FacadePatternTest.java) |
+| Vai trò                             | Lớp                                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| Facade                               | [`SimulationFacade.java`](../src/huddtds/application/facade/SimulationFacade.java) |
+| Service dataset được Facade dùng | [`DatasetService.java`](../src/huddtds/application/DatasetService.java)            |
+| Service xử lý stream/phát event   | [`SimulationService.java`](../src/huddtds/application/SimulationService.java)      |
+| Client Facade                        | [`HUDD_TDS_GUI.java`](../src/huddtds/demo/HUDD_TDS_GUI.java)                       |
+| Kiểm thử Facade và luồng event   | [`FacadePatternTest.java`](../test/FacadePatternTest.java)                         |
 
 ### 3.4 API và đường đi thực tế
 
 Facade hiện cung cấp:
 
-| API | Công việc được ủy quyền |
-|---|---|
-| `getAvailableDatasets()` | Lấy danh sách dataset từ `DatasetService` |
-| `validateDataset(...)` | Kiểm định dataset |
-| `createSimulationService(...)` | Nạp external utility, tạo engine và bọc bằng `SimulationService` |
-| `openTransactionStream(...)` | Mở reader cho dataset/file hoặc tạo reader cho Running Example |
-| `estimateTransactionCount(...)` | Ước lượng số dòng để GUI hiển thị tiến độ |
-| `exportToCSV(...)` | Ghi các dòng/header được caller cung cấp thành CSV |
+| API                               | Công việc được ủy quyền                                         |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `getAvailableDatasets()`        | Lấy danh sách dataset từ`DatasetService`                          |
+| `validateDataset(...)`          | Kiểm định dataset                                                   |
+| `createSimulationService(...)`  | Nạp external utility, tạo engine và bọc bằng`SimulationService` |
+| `openTransactionStream(...)`    | Mở reader cho dataset/file hoặc tạo reader cho Running Example      |
+| `estimateTransactionCount(...)` | Ước lượng số dòng để GUI hiển thị tiến độ                 |
+| `exportToCSV(...)`              | Ghi các dòng/header được caller cung cấp thành CSV              |
 
 GUI đang dùng Facade cho discovery, validation, tạo `SimulationService`, mở
-stream và ước lượng transaction. GUI vẫn giữ tham chiếu `SimulationService` để
-đăng ký listener và gửi tiến độ/hoàn tất/lỗi. `DemoRunner` vẫn gọi engine trực
-tiếp; Facade hiện được dùng chủ yếu bởi GUI. Mặc dù Facade có API
-`exportToCSV(...)`, các lệnh export hiện có của GUI vẫn xử lý ở GUI, không nên
-trình bày như một luồng export đã được nối qua Facade.
+stream, ước lượng transaction và xuất HUI/Drift CSV. GUI vẫn giữ tham chiếu
+`SimulationService` để đăng ký listener và gửi tiến độ/hoàn tất/lỗi.
+`SimulationFacade.exportToCSV(...)` ghi UTF-8, quote trường CSV và escape dấu
+ngoặc kép. Báo cáo TXT thuộc GUI; lịch sử checkpoint đầy đủ được ghi bởi
+`CheckpointHistoryWriter`, không phải export bảng của Facade. `DemoRunner` vẫn
+gọi engine trực tiếp; Facade được dùng chủ yếu bởi GUI.
 
 Facade trả `BufferedReader` cho caller; caller phải đóng reader. Hiện GUI dùng
 try-with-resources cho stream.
@@ -317,7 +323,8 @@ try-with-resources cho stream.
 - Test tạo `SimulationService` qua Facade, mở stream Running Example qua
   Facade, đọc transaction, gửi transaction vào service và xác nhận có event
   `CHECKPOINT_CREATED`.
-- Test này là kiểm thử tích hợp mức application/service, không khởi tạo GUI.
+- Test này là kiểm thử tích hợp mức application/service, không khởi tạo GUI;
+  nó còn kiểm tra Strategy injection qua cấu hình và CSV UTF-8/escaping.
 - Trong lần build/regression gần nhất đã ghi nhận, biên dịch toàn bộ source/test
   và `FacadePatternTest` đều thành công.
 
@@ -330,14 +337,18 @@ try-with-resources cho stream.
 
 ## 4. So sánh nhanh bốn mẫu
 
-| Mẫu | Câu hỏi trả lời | Nơi áp dụng | Giá trị mang lại |
-|---|---|---|---|
-| Strategy | Làm sao thay một thuật toán mà giữ bộ điều phối? | `HUDD_TDS` và ba strategy interfaces | Giảm phụ thuộc implementation; dễ tiêm fake strategy để kiểm thử |
-| Observer | Làm sao thông báo kết quả mà không gọi trực tiếp GUI? | `SimulationService` và event/listener API | Publisher độc lập với Swing; có thể có subscriber/test listener khác |
-| Facade | Làm sao GUI truy cập subsystem ứng dụng gọn hơn? | `SimulationFacade` trước các application/data services | Gom các lời gọi phổ biến; giảm hiểu biết subsystem ở client GUI |
-| Builder | Làm sao khởi tạo đối tượng phức tạp an toàn và dễ đọc? | `HUDD_TDS.Builder` và `SimulationEvent.Builder` | Tránh Telescoping Constructors, validate tham số biên (`minutil >= 0`, `interval > 0`) trước khi dựng đối tượng |
+| Mẫu     | Câu hỏi trả lời                                                  | Nơi áp dụng                                              | Giá trị mang lại                                                                                                           |
+| -------- | -------------------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Strategy | Làm sao thay một thuật toán mà giữ bộ điều phối?           | `HUDD_TDS` và ba strategy interfaces                     | Giảm phụ thuộc implementation; dễ tiêm fake strategy để kiểm thử                                                     |
+| Observer | Làm sao thông báo kết quả mà không gọi trực tiếp GUI?      | `SimulationService` và event/listener API                | Publisher độc lập với Swing; có thể có subscriber/test listener khác                                                  |
+| Facade   | Làm sao GUI truy cập subsystem ứng dụng gọn hơn?               | `SimulationFacade` trước các application/data services | Gom các lời gọi phổ biến; giảm hiểu biết subsystem ở client GUI                                                      |
+| Builder  | Làm sao cấu hình mô phỏng/engine/event rõ nghĩa và kiểm tra payload thiết yếu? | `SimulationConfiguration.Builder`, `HUDD_TDS.Builder`, `SimulationEvent.Builder` | Kiểm tra tham số cấu hình và trường event cốt yếu theo `EventType`. |
 
 ## 5. Kết quả kiểm thử thực tế
+
+Các kết quả dưới đây là hồ sơ lịch sử của lần xác minh đã ghi nhận, không phải
+kết quả được chạy lại trong lượt rà soát tài liệu ngày 2026-10-09. Lượt này
+không chạy `javac`, runner hoặc GUI.
 
 Trong lần xác minh gần nhất đã thực hiện:
 
@@ -350,7 +361,10 @@ Trong lần xác minh gần nhất đã thực hiện:
 7. `BaselineRunner` và `EndToEndChessRunner`: kết thúc với mã thoát 0.
 
 `DriftPairBenchmark` và `FullBenchmarkSuite` không chạy lại trong lần xác minh
-đó. Tài liệu này cũng không kết luận GUI đã được kiểm thử toàn diện; các giới
+pattern đó. Ba runner `GlobalDriftDetectorStateTest`,
+`CheckpointRetentionTest` và `CheckpointHistoryWriterTest` kiểm tra trạng thái
+detector, retention và ghi CSV riêng; chúng không thay thế kiểm thử GUI.
+Tài liệu này cũng không kết luận GUI đã được kiểm thử toàn diện; các giới
 hạn desktop được ghi tại [validation-and-baseline.md](./validation-and-baseline.md).
 
 ## 6. Kết luận phần trình bày
@@ -358,7 +372,7 @@ hạn desktop được ghi tại [validation-and-baseline.md](./validation-and-b
 > Bốn mẫu được đặt đúng bốn điểm khác nhau của hệ thống: Facade ở ranh giới
 > presentation/application, Observer ở đường truyền kết quả service/client,
 > Strategy bên trong engine thuật toán, và Builder tại bước khởi tạo các đối tượng phức tạp.
-> Kiểm thử hiện có xác nhận injection, delegation, event flow, hủy listener, khởi tạo qua Builder
+> Kiểm thử đã ghi nhận xác nhận injection, delegation, event flow, subscription lifecycle, khởi tạo qua Builder
 > và đường tích hợp Facade đến event checkpoint. Các kết quả này xác nhận hành vi của source/test đã chạy;
 > chúng không thay thế benchmark chưa chạy lại hoặc GUI smoke test đầy đủ.
 

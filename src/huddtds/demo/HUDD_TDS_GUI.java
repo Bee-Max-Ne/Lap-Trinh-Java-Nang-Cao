@@ -1,7 +1,10 @@
 package huddtds.demo;
 
+import huddtds.algorithm.HUDD_TDS;
 import huddtds.application.SimulationService;
+import huddtds.application.CheckpointHistoryWriter;
 import huddtds.application.DatasetService;
+import huddtds.application.SimulationConfiguration;
 import huddtds.application.facade.SimulationFacade;
 import huddtds.application.event.EventType;
 import huddtds.application.event.SimulationEvent;
@@ -26,6 +29,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
 
@@ -103,6 +107,8 @@ public class HUDD_TDS_GUI extends JFrame {
     // Luồng ngầm
     private SimulationWorker currentWorker;
     private File currentProcessLogFile;
+    private File currentCheckpointHistoryFile;
+    private final Deque<Integer> retainedUiCheckpointTids = new ArrayDeque<>();
     private volatile int currentDelayMs = 0;
 
     // Thống kê tổng hợp
@@ -656,11 +662,12 @@ public class HUDD_TDS_GUI extends JFrame {
         String manualInput = selected.contains("Running Example")
                 ? manualInputArea.getText()
                 : null;
-        currentProcessLogFile = new File("logs", "HUDD_TDS_Process_"
-            + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date()) + ".log");
+        String runId = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
+        currentProcessLogFile = new File("logs", "HUDD_TDS_Process_" + runId + ".log");
+        currentCheckpointHistoryFile = new File("logs", "HUDD_TDS_Checkpoints_" + runId + ".csv");
         currentWorker = new SimulationWorker(selected, minutil, interval, windowSize, alpha,
             maxPattern, maxTxLimit, chkTraceEachTransaction.isSelected(),
-            manualInput, currentProcessLogFile);
+            manualInput, currentProcessLogFile, currentCheckpointHistoryFile);
         currentWorker.execute();
     }
 
@@ -701,6 +708,7 @@ public class HUDD_TDS_GUI extends JFrame {
         totalCheckpointsCount = 0;
         totalGlobalDriftsCount = 0;
         totalLocalDriftsCount = 0;
+        retainedUiCheckpointTids.clear();
 
         lblCurrentTID.setText("T_0");
         lblHuiCount.setText("0");
@@ -717,6 +725,7 @@ public class HUDD_TDS_GUI extends JFrame {
         summaryStatsArea.setText("Chưa có thống kê thực nghiệm.");
         processLogArea.setText("");
         currentProcessLogFile = null;
+        currentCheckpointHistoryFile = null;
     }
 
     private void onShowExportMenu() {
@@ -738,6 +747,10 @@ public class HUDD_TDS_GUI extends JFrame {
         itemExportProcessLog.addActionListener(e -> exportProcessLog());
         menu.add(itemExportProcessLog);
 
+        JMenuItem itemExportCheckpointHistory = new JMenuItem("Xuất toàn bộ lịch sử checkpoint (CSV)");
+        itemExportCheckpointHistory.addActionListener(e -> exportCheckpointHistory());
+        menu.add(itemExportCheckpointHistory);
+
         menu.show(btnExport, 0, btnExport.getHeight());
     }
 
@@ -751,17 +764,9 @@ public class HUDD_TDS_GUI extends JFrame {
         fileChooser.setSelectedFile(new File("HUDD_TDS_HUI_Report_" + System.currentTimeMillis() + ".csv"));
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File saveFile = fileChooser.getSelectedFile();
-            try (PrintWriter writer = new PrintWriter(new FileWriter(saveFile))) {
-                writer.println("Checkpoint TID,Itemset,TU,Faded Utility,Vector,Distance Dmo");
-                for (int i = 0; i < huiTableModel.getRowCount(); i++) {
-                    writer.printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"%n",
-                            huiTableModel.getValueAt(i, 0),
-                            huiTableModel.getValueAt(i, 1),
-                            huiTableModel.getValueAt(i, 2),
-                            huiTableModel.getValueAt(i, 3),
-                            huiTableModel.getValueAt(i, 4),
-                            huiTableModel.getValueAt(i, 5));
-                }
+            try {
+                facade.exportToCSV(saveFile, tableRows(huiTableModel),
+                        new String[]{"Checkpoint TID", "Itemset", "TU", "Faded Utility", "Vector", "Distance Dmo"});
                 JOptionPane.showMessageDialog(this, "Xuất báo cáo HUI thành công:\n" + saveFile.getAbsolutePath(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Lỗi khi lưu tệp: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -779,16 +784,9 @@ public class HUDD_TDS_GUI extends JFrame {
         fileChooser.setSelectedFile(new File("HUDD_TDS_Drift_Report_" + System.currentTimeMillis() + ".csv"));
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File saveFile = fileChooser.getSelectedFile();
-            try (PrintWriter writer = new PrintWriter(new FileWriter(saveFile))) {
-                writer.println("Checkpoint TID,Drift Type,Statistic Value,Epsilon Threshold,Details");
-                for (int i = 0; i < driftTableModel.getRowCount(); i++) {
-                    writer.printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"%n",
-                            driftTableModel.getValueAt(i, 0),
-                            driftTableModel.getValueAt(i, 1),
-                            driftTableModel.getValueAt(i, 2),
-                            driftTableModel.getValueAt(i, 3),
-                            driftTableModel.getValueAt(i, 4));
-                }
+            try {
+                facade.exportToCSV(saveFile, tableRows(driftTableModel),
+                        new String[]{"Checkpoint TID", "Drift Type", "Statistic Value", "Epsilon Threshold", "Details"});
                 JOptionPane.showMessageDialog(this, "Xuất báo cáo Drift thành công:\n" + saveFile.getAbsolutePath(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Lỗi khi lưu tệp: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -829,6 +827,30 @@ public class HUDD_TDS_GUI extends JFrame {
         }
     }
 
+    private void exportCheckpointHistory() {
+        if (currentCheckpointHistoryFile == null || !currentCheckpointHistoryFile.isFile()) {
+            JOptionPane.showMessageDialog(this, "Chưa có tệp lịch sử checkpoint để xuất.",
+                    "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setSelectedFile(new File(currentCheckpointHistoryFile.getName()));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File saveFile = fileChooser.getSelectedFile();
+            try {
+                Files.copy(currentCheckpointHistoryFile.toPath(), saveFile.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+                JOptionPane.showMessageDialog(this,
+                        "Xuất toàn bộ lịch sử checkpoint thành công:\n" + saveFile.getAbsolutePath(),
+                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Lỗi khi lưu tệp: " + ex.getMessage(),
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private void appendProcessLog(String message) {
         processLogArea.append(message);
         processLogArea.append(System.lineSeparator());
@@ -846,6 +868,28 @@ public class HUDD_TDS_GUI extends JFrame {
         processLogArea.setCaretPosition(processLogArea.getDocument().getLength());
     }
 
+    private void removeRowsForTid(DefaultTableModel model, int tid) {
+        String checkpointLabel = "TID " + tid;
+        for (int row = model.getRowCount() - 1; row >= 0; row--) {
+            if (checkpointLabel.equals(model.getValueAt(row, 0))) {
+                model.removeRow(row);
+            }
+        }
+    }
+
+    private List<String[]> tableRows(DefaultTableModel model) {
+        List<String[]> rows = new ArrayList<>(model.getRowCount());
+        for (int row = 0; row < model.getRowCount(); row++) {
+            String[] values = new String[model.getColumnCount()];
+            for (int column = 0; column < model.getColumnCount(); column++) {
+                Object value = model.getValueAt(row, column);
+                values[column] = value == null ? "" : value.toString();
+            }
+            rows.add(values);
+        }
+        return rows;
+    }
+
     /**
      * Lớp SwingWorker xử lý luồng ngầm với hỗ trợ Pause/Resume và Stream Speed Control.
      */
@@ -860,19 +904,23 @@ public class HUDD_TDS_GUI extends JFrame {
         private final boolean traceEachTransaction;
         private final String manualInput;
         private final File logFile;
+        private final File checkpointHistoryFile;
+        private final Semaphore uiQueueSlots = new Semaphore(100);
 
         private volatile boolean paused = false;
         private final Object pauseLock = new Object();
         private BufferedWriter traceWriter;
+        private CheckpointHistoryWriter checkpointHistoryWriter;
         private long traceMessageCount;
         private SimulationService simulationService;
+        private SimulationService.Subscription simulationSubscription;
 
         private long startTimeMs = 0;
         private int totalProcessedTransactions = 0;
 
         public SimulationWorker(String datasetName, double minutil, int interval, int windowSize, double alpha,
                                 int maxPattern, int maxTxLimit, boolean traceEachTransaction,
-                                String manualInput, File logFile) {
+                                String manualInput, File logFile, File checkpointHistoryFile) {
             this.datasetName = datasetName;
             this.minutil = minutil;
             this.interval = interval;
@@ -883,6 +931,19 @@ public class HUDD_TDS_GUI extends JFrame {
             this.traceEachTransaction = traceEachTransaction;
             this.manualInput = manualInput;
             this.logFile = logFile;
+            this.checkpointHistoryFile = checkpointHistoryFile;
+        }
+
+        private void publishBounded(SimulationUpdate update) {
+            try {
+                uiQueueSlots.acquire();
+                publish(update);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                if (!isCancelled()) {
+                    throw new IllegalStateException("Bị gián đoạn khi cập nhật giao diện", ex);
+                }
+            }
         }
 
         private void trace(String message) {
@@ -895,11 +956,11 @@ public class HUDD_TDS_GUI extends JFrame {
                         traceWriter.flush();
                     }
                 } catch (IOException ex) {
-                    publish(SimulationUpdate.trace("[LOG ERROR] Không thể ghi tiếp tệp log: " + ex.getMessage()));
+                    publishBounded(SimulationUpdate.trace("[LOG ERROR] Không thể ghi tiếp tệp log: " + ex.getMessage()));
                     traceWriter = null;
                 }
             }
-            publish(SimulationUpdate.trace(entry));
+            publishBounded(SimulationUpdate.trace(entry));
         }
 
         public void setPaused(boolean paused) {
@@ -928,12 +989,31 @@ public class HUDD_TDS_GUI extends JFrame {
                     + ", window=" + windowSize + ", alpha=" + alpha
                     + ", maxPattern=" + maxPattern + ", maxTx=" + maxTxLimit
                     + ", traceEachTransaction=" + traceEachTransaction);
-            try {
-            simulationService = facade.createSimulationService(
-                    datasetName, customTransactionFile, customInvestmentFile,
-                    minutil, interval, windowSize, alpha, maxPattern);
-            simulationService.addListener(event -> {
-                publish(SimulationUpdate.event(event));
+            try (CheckpointHistoryWriter historyWriter =
+                         new CheckpointHistoryWriter(checkpointHistoryFile.toPath())) {
+            checkpointHistoryWriter = historyWriter;
+            trace("[HISTORY] Lưu toàn bộ checkpoint/HUI tại " + checkpointHistoryFile.getAbsolutePath());
+            SimulationConfiguration configuration = SimulationConfiguration.builder(datasetName)
+                    .withCustomInvestmentFile(customInvestmentFile)
+                    .withMinutil(minutil)
+                    .withInterval(interval)
+                    .withWindowSize(windowSize)
+                    .withAlphaConfidence(alpha)
+                    .withMaxItemsetSize(maxPattern)
+                    .build();
+            simulationService = facade.createSimulationService(configuration);
+            simulationSubscription = simulationService.subscribe(event -> {
+                if (event.getType() == EventType.CHECKPOINT_CREATED) {
+                    try {
+                        checkpointHistoryWriter.append(event);
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException("Không thể ghi lịch sử checkpoint", ex);
+                    }
+                }
+                if (event.getType() != EventType.GLOBAL_DRIFT
+                        && event.getType() != EventType.LOCAL_DRIFT) {
+                    publishBounded(SimulationUpdate.event(event));
+                }
                 if (event.getType() == EventType.CHECKPOINT_CREATED) {
                     trace("[DRIFT] Hoàn tất kiểm định TID=" + event.getTid()
                             + "; global=" + (event.getGlobalDriftMessage() == null
@@ -1018,6 +1098,7 @@ public class HUDD_TDS_GUI extends JFrame {
                         : "[ERROR] " + ex.getClass().getSimpleName() + ": " + ex.getMessage());
                 throw ex;
             } finally {
+                checkpointHistoryWriter = null;
                 if (traceWriter != null) {
                     try {
                         traceWriter.flush();
@@ -1032,6 +1113,7 @@ public class HUDD_TDS_GUI extends JFrame {
         @Override
         protected void process(List<SimulationUpdate> updates) {
             for (SimulationUpdate upd : updates) {
+                try {
                 if (upd.traceMessage != null) {
                     appendProcessLog(upd.traceMessage);
                     continue;
@@ -1057,6 +1139,12 @@ public class HUDD_TDS_GUI extends JFrame {
                 }
                 if (event.getType() == EventType.CHECKPOINT_CREATED) {
                     Checkpoint cp = event.getCheckpoint();
+                    retainedUiCheckpointTids.addLast(cp.getTid());
+                    while (retainedUiCheckpointTids.size() > HUDD_TDS.MAX_RETAINED_CHECKPOINTS) {
+                        int expiredTid = retainedUiCheckpointTids.removeFirst();
+                        removeRowsForTid(huiTableModel, expiredTid);
+                        removeRowsForTid(driftTableModel, expiredTid);
+                    }
                     DriftResult globalResult = event.getGlobalDrift();
                     DriftResult localResult = event.getLocalDrift();
                     String globalDrift = globalResult.isDetected()
@@ -1151,11 +1239,18 @@ public class HUDD_TDS_GUI extends JFrame {
                             (paused ? "ĐANG TẠM DỪNG" : "ĐANG CHẠY")
                     ));
                 }
+                } finally {
+                    uiQueueSlots.release();
+                }
             }
         }
 
         @Override
         protected void done() {
+            if (simulationSubscription != null) {
+                simulationSubscription.close();
+                simulationSubscription = null;
+            }
             btnRun.setEnabled(true);
             btnPause.setEnabled(false);
             btnStop.setEnabled(false);

@@ -55,6 +55,13 @@ public class ChartPanelTest {
         panel.paint(graphics);
         graphics.dispose();
 
+        ChartPanel retainedPanel = new ChartPanel();
+        for (int tid = 1; tid <= ChartPanel.MAX_RETAINED_CHECKPOINTS + 1; tid++) {
+            retainedPanel.addCheckpoint(new Checkpoint(tid));
+        }
+        require(retainedPanel.getRetainedCheckpointCount() == ChartPanel.MAX_RETAINED_CHECKPOINTS,
+                "Chart should retain only the latest 1,000 checkpoints");
+
         System.out.println("ChartPanelTest PASSED");
     }
 

@@ -32,9 +32,16 @@ GUI dùng Facade để:
 - mở transaction stream hoặc stream Running Example;
 - ước lượng số giao dịch để hiển thị tiến độ.
 
-`SimulationFacade.exportToCSV(...)` cũng có trong API Facade, nhưng GUI hiện
-đang thực hiện các thao tác xuất tại chính tầng trình bày. Không nên xem chức
-năng này là đã được tích hợp/kiểm thử chỉ vì phương thức tồn tại.
+GUI dùng `SimulationFacade.exportToCSV(...)` để xuất các hàng hiện còn trong
+bảng HUI và Drift. Facade ghi UTF-8, quote từng ô CSV, escape dấu ngoặc kép
+thành hai dấu ngoặc kép và chuyển giá trị `null` thành ô rỗng. Overload nhận
+`title` chỉ giữ tương thích và không ghi title thành dòng CSV.
+
+Tương tự, ghi lịch sử đầy đủ checkpoint/HUI trong lúc chạy là trách nhiệm của
+`HUDD_TDS_GUI.SimulationWorker` thông qua `CheckpointHistoryWriter`, không phải
+API export bảng của Facade. Writer được gọi đồng bộ trên luồng mô phỏng khi
+service phát event checkpoint; menu xuất lịch sử đầy đủ sao chép file CSV phiên
+thay vì export lại từ lịch sử giới hạn trong RAM.
 
 Facade trả về `BufferedReader`; caller sở hữu reader và phải đóng reader, thường
 bằng try-with-resources. `SimulationFacade` hiện được GUI sử dụng; `DemoRunner`
@@ -49,7 +56,9 @@ Bốn mẫu thiết kế có phạm vi riêng và nối tiếp nhau trong luồn
    drift qua ba interface có thể tiêm phụ thuộc.
 3. **Observer** cho phép `SimulationService` gửi event đến listener mà không
    phụ thuộc trực tiếp vào Swing.
-4. **Builder** giúp khởi tạo `HUDD_TDS` Engine và `SimulationEvent` payload an toàn, an toàn kiểu dữ liệu và linh hoạt.
+4. **Builder** giúp cấu hình `SimulationConfiguration`, Engine và event qua
+   các lời gọi có tên; các builder kiểm tra tham số cấu hình, còn event builder
+   kiểm tra các trường cốt yếu theo `EventType`.
 
 Facade tạo `SimulationService`, nhưng không thay thế Observer. Service vẫn
 phát event; GUI listener chuyển event qua `SwingWorker.publish()` để cập nhật
@@ -60,10 +69,10 @@ của `HUDD_TDS`.
 ## Kiểm thử
 
 `FacadePatternTest` kiểm tra discovery/validation, tạo service, mở stream và
-xử lý giao dịch qua service do Facade tạo, đồng thời xác nhận event checkpoint
-được phát. `StrategyInjectionTest` và `SimulationServiceEventTest` kiểm tra
-riêng delegation Strategy và hành vi Observer. Các test này không thay thế
-kiểm thử GUI runtime đầy đủ.
+xử lý giao dịch qua service do Facade tạo, event checkpoint, Strategy injection
+qua cấu hình, Observer drift event và CSV UTF-8/escaping. `StrategyInjectionTest`
+và `SimulationServiceEventTest` kiểm tra riêng delegation Strategy và hành vi
+Observer. Các test này không thay thế kiểm thử GUI runtime đầy đủ.
 
 Xem thêm [design-patterns.md](./design-patterns.md),
 [architecture.md](./architecture.md) và

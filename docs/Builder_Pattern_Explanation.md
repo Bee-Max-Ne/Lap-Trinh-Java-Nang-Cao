@@ -7,9 +7,9 @@
 ### 📘 Khái niệm
 **Builder Pattern** (Mẫu Thiết Kế Khởi Tạo) là một mẫu thiết kế thuộc nhóm **Khởi Tạo (Creational Pattern)**.
 
-Nó cung cấp giải pháp xây dựng các đối tượng phức tạp có nhiều thuộc tính theo từng bước (step-by-step) bằng cách tách rời quá trình khởi tạo đối tượng khỏi biểu diễn của nó. Builder Pattern sử dụng giao diện dạng chuỗi nối tiếp (**Fluent Interface Chaining** dạng `.withMinutil().withAlpha().build()`), giúp việc tạo đối tượng trở nên trực quan, an toàn và dễ đọc.
+Nó cung cấp giải pháp xây dựng các đối tượng phức tạp có nhiều thuộc tính theo từng bước bằng cách tách rời quá trình cấu hình khỏi việc tạo đối tượng. Trong dự án, fluent API có dạng `.withMinutil(...).withAlphaConfidence(...).build()`.
 
-Mẫu thiết kế này sinh ra để triệt tiêu hoàn toàn chống mẫu **Telescoping Constructor Anti-Pattern** (vấn đề một lớp phải tạo quá nhiều Constructor nạp chồng với hàng dài tham số đứng cạnh nhau).
+Mẫu thiết kế này giảm sự phụ thuộc vào constructor có nhiều tham số vị trí; các constructor hiện hữu vẫn được giữ để tương thích.
 
 ---
 
@@ -24,13 +24,22 @@ classDiagram
         -int interval
         -int windowSize
         -double alphaConfidence
+        -List~Transaction~ memory
+        -List~Checkpoint~ checkpoints
         -HUIItemsetMiner huiMiner
         -GlobalDriftStrategy globalDriftDetector
         -LocalDriftStrategy localDriftDetector
-        -HUDD_TDS(Builder builder)
+        +HUDD_TDS(Builder)
+        +getCheckpoints() List~Checkpoint~
+        +getAlphaConfidence() double
+        +getInterval() int
+        +getWindowSize() int
+        +getMinutil() double
+        +getHuiMiner() HUIItemsetMiner
     }
 
     class HUDD_TDS_Builder {
+        -Map~String, Double~ externalUtilities
         -double minutil
         -int interval
         -int windowSize
@@ -51,18 +60,82 @@ classDiagram
         +build() HUDD_TDS
     }
 
+    class SimulationConfiguration {
+        -String datasetName
+        -File customInvestmentFile
+        -double minutil
+        -int interval
+        -int windowSize
+        -double alphaConfidence
+        -int maxItemsetSize
+        -HUIItemsetMiner huiItemsetMiner
+        -GlobalDriftStrategy globalDriftStrategy
+        -LocalDriftStrategy localDriftStrategy
+        -SimulationConfiguration(Builder)
+        +builder(String) Builder
+        +getDatasetName() String
+        +getCustomInvestmentFile() File
+        +getMinutil() double
+        +getInterval() int
+        +getWindowSize() int
+        +getAlphaConfidence() double
+        +getMaxItemsetSize() int
+        +getHuiItemsetMiner() HUIItemsetMiner
+        +getGlobalDriftStrategy() GlobalDriftStrategy
+        +getLocalDriftStrategy() LocalDriftStrategy
+    }
+
+    class SimulationConfiguration_Builder {
+        -String datasetName
+        -File customInvestmentFile
+        -double minutil
+        -int interval
+        -int windowSize
+        -double alphaConfidence
+        -int maxItemsetSize
+        -HUIItemsetMiner huiItemsetMiner
+        -GlobalDriftStrategy globalDriftStrategy
+        -LocalDriftStrategy localDriftStrategy
+        +withCustomInvestmentFile(File) Builder
+        +withMinutil(double) Builder
+        +withInterval(int) Builder
+        +withWindowSize(int) Builder
+        +withAlphaConfidence(double) Builder
+        +withMaxItemsetSize(int) Builder
+        +withHuiItemsetMiner(HUIItemsetMiner) Builder
+        +withGlobalDriftStrategy(GlobalDriftStrategy) Builder
+        +withLocalDriftStrategy(LocalDriftStrategy) Builder
+        +build() SimulationConfiguration
+    }
+
     class SimulationEvent {
         -EventType type
         -int tid
         -Transaction transaction
         -Checkpoint checkpoint
+        -DriftResult driftResult
         -DriftResult globalDrift
         -DriftResult localDrift
         -List~String~ itemsetVectors
         -int totalEstimate
         -int speedTxPerSec
         -String message
-        -SimulationEvent(Builder builder)
+        -String globalDriftMessage
+        -String localDriftMessage
+        +SimulationEvent(Builder)
+        +getType() EventType
+        +getTid() int
+        +getTransaction() Transaction
+        +getCheckpoint() Checkpoint
+        +getDriftResult() DriftResult
+        +getGlobalDrift() DriftResult
+        +getLocalDrift() DriftResult
+        +getItemsetVectors() List~String~
+        +getTotalEstimate() int
+        +getSpeedTxPerSec() int
+        +getMessage() String
+        +getGlobalDriftMessage() String
+        +getLocalDriftMessage() String
     }
 
     class SimulationEvent_Builder {
@@ -70,20 +143,32 @@ classDiagram
         -int tid
         -Transaction transaction
         -Checkpoint checkpoint
+        -DriftResult driftResult
         -DriftResult globalDrift
         -DriftResult localDrift
         -List~String~ itemsetVectors
         -int totalEstimate
         -int speedTxPerSec
         -String message
+        -String globalDriftMessage
+        -String localDriftMessage
         +withType(EventType) Builder
         +withTid(int) Builder
+        +withTransaction(Transaction) Builder
         +withCheckpoint(Checkpoint) Builder
+        +withDriftResult(DriftResult) Builder
         +withGlobalDrift(DriftResult) Builder
         +withLocalDrift(DriftResult) Builder
+        +withItemsetVectors(List~String~) Builder
+        +withTotalEstimate(int) Builder
+        +withSpeedTxPerSec(int) Builder
+        +withMessage(String) Builder
+        +withGlobalDriftMessage(String) Builder
+        +withLocalDriftMessage(String) Builder
         +build() SimulationEvent
     }
 
+    SimulationConfiguration +-- SimulationConfiguration_Builder : creates
     HUDD_TDS +-- HUDD_TDS_Builder : Inner Static Class
     SimulationEvent +-- SimulationEvent_Builder : Inner Static Class
 ```
@@ -97,13 +182,14 @@ flowchart TD
         Cons -->|Nguy cơ truyền lầm vị trí double/int| Error[Lỗi ngầm Silent Bug khó phát hiện]
     end
 
-    subgraph KHI ÁP DỤNG BUILDER PATTERN (An toàn 100%)
+    subgraph KHI ÁP DỤNG BUILDER PATTERN (Rõ nghĩa hơn)
         C2[Client/Caller] -->|Gán từng thuộc tính rõ tên| Step1[Builder.withMinutil 15.0]
         Step1 --> Step2[Builder.withAlphaConfidence 0.05]
         Step2 --> Step3[Builder.withWindowSize 200]
-        Step3 -->|Kiểm tra Validation an toàn| Validate{Valid?}
-        Validate -->|Hợp lệ| Build[build -> Trả về HUDD_TDS hoàn chỉnh]
-        Validate -->|Không hợp lệ| Exception[Ném IllegalArgumentException ngay]
+        Step3 -->|Setter kiểm tra tham số| Validate{Giá trị hợp lệ?}
+        Validate -->|Hợp lệ| Next[Tiếp tục cấu hình]
+        Validate -->|Không hợp lệ| Exception[Ném IllegalArgumentException tại setter]
+        Next --> Build[build -> Tạo HUDD_TDS]
     end
 ```
 
@@ -114,13 +200,17 @@ flowchart TD
 Chúng tôi lựa chọn **Builder Pattern** cho hệ thống vì các lý do chiến lược sau:
 
 1. **Loại bỏ nguy cơ Lỗi Tàng hình (Silent Bug)**:
-   Trong Java, nếu một Constructor nhận nhiều tham số có cùng kiểu dữ liệu đứng cạnh nhau (ví dụ: `double minutil` và `double alphaConfidence`), lập trình viên truyền lầm vị trí 2 giá trị này thì **trình biên dịch hoàn toàn KHÔNG báo lỗi**. Lỗi này làm sai lệch toàn bộ kết quả mô phỏng toán học mà cực kỳ khó debug. Builder ép buộc phải ghi rõ tên phương thức gán (`.withMinutil()`, `.withAlphaConfidence()`), loại bỏ 100% rủi ro này.
+   Trong Java, truyền nhầm hai tham số cùng kiểu vào constructor có thể không bị trình biên dịch phát hiện. Builder làm lời gọi rõ nghĩa hơn bằng `.withMinutil()` và `.withAlphaConfidence()`; nó giảm rủi ro đọc nhầm nhưng không loại bỏ mọi lỗi cấu hình.
 2. **Mã nguồn Tự tư liệu hóa (Self-documenting Code)**:
    Thay vì dòng code khó hiểu `new SimulationEvent(TYPE, 10, tx, cp, d1, d2, d3, list, 1000, 50, null, msg1, msg2)`, việc dùng Builder `.withTid(10).withCheckpoint(cp).withSpeedTxPerSec(50)` giúp bất kỳ ai đọc code cũng hiểu ngay ý nghĩa từng thuộc tính.
 3. **Tích hợp Bước Kiểm tra Hợp lệ (Validation Step)**:
-   Cho phép kiểm tra tính hợp lệ của dữ liệu đầu vào (ví dụ `minutil >= 0`, `alphaConfidence ∈ (0, 1]`) ngay trước khi đối tượng được khởi tạo.
-4. **Cung cấp Giá trị Mặc định An toàn (Default Values)**:
-   Nếu một tham số không được chọn, Builder sẽ tự gán giá trị mặc định chuẩn thay vì để `null` gây ra lỗi `NullPointerException`.
+   `HUDD_TDS.Builder` kiểm tra `minutil` hữu hạn/không âm, `interval` và
+   `windowSize` dương, alpha trong `(0,1)`, cùng giới hạn itemset không âm.
+   `SimulationConfiguration.Builder` áp dụng các điều kiện tương ứng và yêu cầu
+   tên dataset không rỗng. Constructor engine tương thích cũ không chạy các kiểm
+   tra của Builder.
+4. **Giá trị mặc định cho cấu hình Engine**:
+   Builder của `HUDD_TDS` có các giá trị mặc định cho external utilities, `minutil`, `interval`, `windowSize`, alpha và giới hạn itemset. Các trường tùy chọn của `SimulationEvent.Builder` có thể vẫn là `null` hoặc giá trị mặc định Java nếu caller không thiết lập.
 
 ---
 
@@ -140,21 +230,22 @@ Dự án **HUDD-TDS** (*High-Utility Itemset Discovery with Temporal Drift Detec
   - `globalDriftDetector` (GlobalDriftStrategy): Chiến lược trôi dạt toàn cục.
   - `localDriftDetector` (LocalDriftStrategy): Chiến lược trôi dạt cục bộ.
 
-- **Đối tượng Sự kiện `SimulationEvent` cực kỳ phức tạp**:
-  Khi mô phỏng chạy, sự kiện phát ra giữa `SimulationService` và `HUDD_TDS_GUI` mang theo **13 thông số khác nhau** (giao dịch, checkpoint, drift toàn cục, drift cục bộ, vector tập mục, dung lượng RAM, tốc độ thông lượng...).
+- **Đối tượng Sự kiện `SimulationEvent` có nhiều trường tùy chọn**:
+  Payload có 13 trường gồm loại/TID, transaction, checkpoint, kết quả drift, vector itemset, tiến độ/tốc độ và thông điệp. Payload không chứa số đo RAM.
 
-👉 **Builder Pattern là mảnh ghép hoàn hảo nhất** giúp việc cấu hình thuật toán toán học HUDD-TDS và khởi tạo sự kiện mô phỏng trở nên cực kỳ gọn gàng, trực quan và an toàn tuyệt đối.
+Builder giúp việc cấu hình Engine và tạo event dễ đọc hơn; nó không tự bảo đảm
+tính đúng đắn của công thức hoặc deep-copy các đối tượng model được tham chiếu.
 
 ---
 
 ## 🛠️ 5. KHI ÁP DỤNG BUILDER PATTERN, NÓ GIẢI QUYẾT ĐƯỢC NHỮNG VẤN ĐỀ GÌ?
 
-| Vấn đề trước khi áp dụng | Cách Builder Pattern giải quyết triệt để |
+| Vấn đề cần xử lý | Cách Builder hỗ trợ |
 | :--- | :--- |
-| **Constructor quá nhiều tham số (Telescoping Constructor)**<br>Phải viết 4-5 Constructor nạp chồng với 7 đến 13 tham số dài ngoằng. | Thay thế bằng 1 static inner class `Builder`. Khởi tạo linh hoạt bất kỳ số lượng thuộc tính nào theo nhu cầu. |
-| **Truyền lầm vị trí tham số cùng kiểu (Silent Bug)**<br>Truyền lầm `minutil = 0.05` và `alpha = 15.0` làm sai lệch thuật toán mà không báo lỗi biên dịch. | Ép buộc gọi từng phương thức đặt tên rõ ràng: `.withMinutil(15.0)` và `.withAlphaConfidence(0.05)`. |
-| **Độ phức tạp khi mở rộng thuộc tính mới**<br>Mỗi lần thêm 1 tham số mới phải sửa lại tất cả các Constructor cũ ở khắp dự án. | Chỉ cần thêm phương thức `.withNewProperty()` vào lớp Builder. Các mã nguồn cũ dùng Builder giữ nguyên 100% không bị ảnh hưởng. |
-| **Đối tượng bị khởi tạo ở trạng thái không hợp lệ (Inconsistent State)**<br>Đối tượng tạo ra bị thiếu tham số quan trọng hoặc bị gán giá trị âm nguy hiểm. | Kiểm tra Validation toàn bộ thuộc tính tại phương thức `.build()`. Nếu sai sẽ báo lỗi `IllegalArgumentException` ngay lập tức. |
+| **Constructor có nhiều tham số vị trí** | Builder cho phép ghi cấu hình theo tên phương thức; các constructor hiện hữu vẫn được giữ để tương thích. |
+| **Khó đọc lời gọi tham số cùng kiểu** | `.withMinutil(15.0)` và `.withAlphaConfidence(0.05)` làm rõ ý nghĩa từng giá trị, nhưng không thay thế kiểm tra nghiệp vụ. |
+| **Mở rộng cấu hình** | Có thể thêm phương thức cấu hình vào Builder; mức độ tương thích vẫn phụ thuộc các API và caller hiện có. |
+| **Cấu hình số học không hợp lệ**<br>Nhập `minutil` âm/không hữu hạn, interval/window không dương, alpha ngoài `(0,1)` hoặc giới hạn itemset âm. | `SimulationConfiguration.Builder` và `HUDD_TDS.Builder` từ chối tham số tương ứng. `HUDD_TDS.Builder` cũng snapshot map external utility. `SimulationEvent.Builder` kiểm tra các payload cốt yếu theo loại event. |
 
 ---
 
@@ -162,8 +253,8 @@ Dự án **HUDD-TDS** (*High-Utility Itemset Discovery with Temporal Drift Detec
 
 Khi áp dụng **Builder Pattern**, các tệp trong dự án thay đổi cụ thể như sau:
 
-### 1️⃣ Tệp thuật toán lõi: [HUDD_TDS.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/algorithm/HUDD_TDS.java)
-- **Thay đổi**: Bổ sung `static class Builder` bên trong `HUDD_TDS`.
+### 1. Tệp thuật toán lõi: [HUDD_TDS.java](../src/huddtds/algorithm/HUDD_TDS.java)
+- **Hiện trạng**: Có `static class Builder` bên trong `HUDD_TDS`. Các setter kiểm tra miền số học và `externalUtilities` được sao chép thành map không sửa được; `build()` tạo engine.
 - ❌ **TRƯỚC**:
   ```java
   // Khởi tạo rối rắm, rất dễ nhầm lẫn vị trí giữa các số double và int:
@@ -171,7 +262,7 @@ Khi áp dụng **Builder Pattern**, các tệp trong dự án thay đổi cụ t
   ```
 - ✅ **SAU**:
   ```java
-  // Rõ ràng từng tham số, tự động validate ngưỡng an toàn:
+  // Tên phương thức giúp đọc rõ ý nghĩa tham số:
   HUDD_TDS engine = new HUDD_TDS.Builder()
       .withExternalUtilities(externalUtilities)
       .withMinutil(15.0)
@@ -186,16 +277,16 @@ Khi áp dụng **Builder Pattern**, các tệp trong dự án thay đổi cụ t
 
 ---
 
-### 2️⃣ Tệp sự kiện ứng dụng: [SimulationEvent.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/application/event/SimulationEvent.java)
-- **Thay đổi**: Bổ sung `static class Builder` bên trong `SimulationEvent`.
-- ❌ **TRƯỚC (Constructor 13 tham số gây thảm họa đọc code)**:
+### 2. Tệp sự kiện ứng dụng: [SimulationEvent.java](../src/huddtds/application/event/SimulationEvent.java)
+- **Hiện trạng**: Có `static class Builder`; danh sách `itemsetVectors` được sao chép và bọc thành danh sách không sửa được.
+- **Constructor vị trí 13 tham số vẫn còn để tương thích**:
   ```java
   SimulationEvent event = new SimulationEvent(
       EventType.CHECKPOINT_CREATED, tid, transaction, checkpoint, 
       null, globalDrift, localDrift, vectors, 1000, 50, null, msg1, msg2
   );
   ```
-- ✅ **SAU (Chuỗi khởi tạo Fluent cực kỳ sạch sẽ)**:
+- ✅ **Builder API hiện tại**:
   ```java
   SimulationEvent event = new SimulationEvent.Builder()
       .withType(EventType.CHECKPOINT_CREATED)
@@ -212,18 +303,25 @@ Khi áp dụng **Builder Pattern**, các tệp trong dự án thay đổi cụ t
 
 ---
 
-### 3️⃣ Tệp dịch vụ mặt tiền: [SimulationFacade.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/application/facade/SimulationFacade.java)
-- **Thay đổi**: Dùng `HUDD_TDS.Builder` để khởi tạo engine mô phỏng trong phương thức `createSimulationService`.
+### 3. Tệp dịch vụ mặt tiền: [SimulationFacade.java](../src/huddtds/application/facade/SimulationFacade.java)
+- **Hiện trạng**: Dùng `HUDD_TDS.Builder` để khởi tạo engine trong `createSimulationService`.
 
 ---
 
-### 4️⃣ Tệp giao diện: [HUDD_TDS_GUI.java](file:///f:/Lap-Trinh-Java-Nang-Cao/src/huddtds/demo/HUDD_TDS_GUI.java)
-- **Thay đổi**: Chuyển các thao tác tạo đối tượng cấu hình mô phỏng và sự kiện sang sử dụng Builder.
+### 4. Tệp dịch vụ mô phỏng: [SimulationService.java](../src/huddtds/application/SimulationService.java)
+- **Hiện trạng**: Tạo các `SimulationEvent` bằng Builder khi phát checkpoint, drift, tiến độ, hoàn tất hoặc lỗi. GUI không trực tiếp dựng event này.
 
 ---
 
-### 5️⃣ Tệp kiểm thử tự động: `test/BuilderPatternTest.java`
-- **Thay đổi**: Thêm bài test tự động kiểm tra tính đúng đắn của Builder và khả năng bắt lỗi validation.
+### 5. Tệp kiểm thử: [BuilderPatternTest.java](../test/BuilderPatternTest.java)
+- **Phạm vi**: Kiểm tra cấu hình Engine và event qua Builder, một số trường hợp tham số biên và fluent API.
+
+Builder từ chối `alphaConfidence` ngoài `(0,1)`, đồng nhất với miền của các
+công thức trong `UtilityMetrics`. `SimulationEvent.Builder` yêu cầu event type,
+TID không âm, checkpoint cho `CHECKPOINT_CREATED`, `DriftResult` đã phát hiện
+và đúng loại cho event global/local, cùng metadata tiến độ không âm. Constructor
+công khai kiểu cũ của `SimulationEvent` vẫn giữ để tương thích nhưng không áp
+dụng các kiểm tra này; danh sách vector chỉ được copy nông.
 
 ---
 

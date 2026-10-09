@@ -20,6 +20,8 @@ import java.util.function.Consumer;
  * và kiểm định trôi dạt toàn cục (Global Drift) và cục bộ (Local Drift).
  */
 public class HUDD_TDS {
+    public static final int MAX_RETAINED_CHECKPOINTS = 1000;
+
     private final double minutil;
     private final int interval;
     private final int windowSize;
@@ -144,13 +146,17 @@ public class HUDD_TDS {
 
         /** Thiết lập bảng giá trị độ lợi ngoại vi */
         public Builder withExternalUtilities(Map<String, Double> externalUtilities) {
-            this.externalUtilities = externalUtilities != null ? externalUtilities : java.util.Collections.emptyMap();
+            this.externalUtilities = externalUtilities == null
+                    ? java.util.Collections.emptyMap()
+                    : java.util.Collections.unmodifiableMap(new java.util.HashMap<>(externalUtilities));
             return this;
         }
 
         /** Thiết lập ngưỡng độ lợi tối thiểu (MinUtil) - Phải >= 0 */
         public Builder withMinutil(double minutil) {
-            if (minutil < 0) throw new IllegalArgumentException("Ngưỡng minutil không được âm: " + minutil);
+            if (!Double.isFinite(minutil) || minutil < 0) {
+                throw new IllegalArgumentException("Ngưỡng minutil phải hữu hạn và không âm: " + minutil);
+            }
             this.minutil = minutil;
             return this;
         }
@@ -171,8 +177,8 @@ public class HUDD_TDS {
 
         /** Thiết lập mức ý nghĩa Alpha (0 < alphaConfidence <= 1) */
         public Builder withAlphaConfidence(double alphaConfidence) {
-            if (alphaConfidence <= 0 || alphaConfidence > 1) {
-                throw new IllegalArgumentException("Ngưỡng alphaConfidence phải trong khoảng (0, 1]: " + alphaConfidence);
+            if (!Double.isFinite(alphaConfidence) || alphaConfidence <= 0 || alphaConfidence >= 1) {
+                throw new IllegalArgumentException("Ngưỡng alphaConfidence phải trong khoảng (0, 1): " + alphaConfidence);
             }
             this.alphaConfidence = alphaConfidence;
             return this;
@@ -180,6 +186,9 @@ public class HUDD_TDS {
 
         /** Thiết lập độ dài tập mục tối đa */
         public Builder withMaxItemsetSize(int maxItemsetSize) {
+            if (maxItemsetSize < 0) {
+                throw new IllegalArgumentException("Độ dài itemset tối đa không được âm: " + maxItemsetSize);
+            }
             this.maxItemsetSize = maxItemsetSize;
             return this;
         }
@@ -302,6 +311,9 @@ public class HUDD_TDS {
         }
         cp.setGlobalDistance(totalDistance);
         checkpoints.add(cp);
+        if (checkpoints.size() > MAX_RETAINED_CHECKPOINTS) {
+            checkpoints.remove(0);
+        }
         trace(String.format("[CHECKPOINT] TID=%d complete; HUI count=%d, DIS_HS=%.6f",
             tx.getTid(), cp.getHuis().size(), cp.getGlobalDistance()));
         return cp;

@@ -1,11 +1,15 @@
 package test;
 
 import huddtds.algorithm.HUDD_TDS;
+import huddtds.application.SimulationConfiguration;
 import huddtds.application.event.EventType;
 import huddtds.application.event.SimulationEvent;
+import huddtds.model.Checkpoint;
+import huddtds.model.HighUtilityItemset;
 import huddtds.model.Transaction;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -19,7 +23,9 @@ public class BuilderPatternTest {
         
         // 2. Kiểm thử tính năng bắt lỗi hợp lệ (Validation) khi truyền tham số sai
         testHuddTdsBuilderValidation();
-        
+
+        testSimulationConfigurationBuilderValidation();
+
         // 3. Kiểm thử khởi tạo đối tượng sự kiện SimulationEvent qua Builder
         testSimulationEventBuilder();
 
@@ -42,6 +48,24 @@ public class BuilderPatternTest {
         require(engine.getInterval() == 10, "Chu kỳ interval phải khớp với giá trị truyền vào Builder");
         require(engine.getWindowSize() == 20, "Kích thước windowSize phải khớp với giá trị truyền vào Builder");
         require(engine.getAlphaConfidence() == 0.05, "Ngưỡng alphaConfidence phải khớp với giá trị truyền vào Builder");
+
+        Map<String, Double> mutableUtilities = new HashMap<>();
+        mutableUtilities.put("a", 5.0);
+        HUDD_TDS snapshotEngine = new HUDD_TDS.Builder()
+                .withExternalUtilities(mutableUtilities)
+                .withMinutil(1.0)
+                .withInterval(1)
+                .withWindowSize(1)
+                .withAlphaConfidence(0.05)
+                .withMaxItemsetSize(1)
+                .build();
+        mutableUtilities.put("a", 50.0);
+        Transaction transaction = new Transaction(1);
+        transaction.addElement("a", 1);
+        Checkpoint checkpoint = snapshotEngine.processTransaction(transaction);
+        HighUtilityItemset hui = checkpoint.getHuis().get(0);
+        require(hui.getTotalUtility() == 5.0,
+                "Engine Builder should snapshot external utilities rather than retain a mutable caller map");
     }
 
     private static void testHuddTdsBuilderValidation() {
@@ -52,6 +76,33 @@ public class BuilderPatternTest {
         } catch (IllegalArgumentException expected) {
             // Ném lỗi hợp lệ như mong đợi
         }
+
+        expectIllegalArgument(() -> new HUDD_TDS.Builder().withMinutil(Double.NaN),
+                "Builder phải từ chối minutil không hữu hạn");
+        expectIllegalArgument(() -> new HUDD_TDS.Builder().withAlphaConfidence(1.0),
+                "Builder phải từ chối alpha=1 vì công thức thống kê yêu cầu alpha<1");
+        expectIllegalArgument(() -> new HUDD_TDS.Builder().withMaxItemsetSize(-1),
+                "Builder phải từ chối độ dài itemset âm");
+    }
+
+    private static void testSimulationConfigurationBuilderValidation() {
+        SimulationConfiguration configuration = SimulationConfiguration.builder("Running Example")
+                .withMinutil(0.0)
+                .withInterval(2)
+                .withWindowSize(4)
+                .withAlphaConfidence(0.05)
+                .withMaxItemsetSize(3)
+                .build();
+        require(configuration.getInterval() == 2 && configuration.getWindowSize() == 4,
+                "Simulation configuration should preserve its validated parameters");
+
+        expectIllegalArgument(() -> SimulationConfiguration.builder(" "),
+                "Configuration phải yêu cầu tên dataset");
+        expectIllegalArgument(() -> SimulationConfiguration.builder("Chess").withAlphaConfidence(1.0),
+                "Configuration phải từ chối alpha=1");
+        expectIllegalArgument(() -> SimulationConfiguration.builder("Chess")
+                        .withMinutil(Double.POSITIVE_INFINITY),
+                "Configuration phải từ chối minutil không hữu hạn");
 
         // Kiểm thử Validation 2: Ngưỡng alphaConfidence vượt quá 1 phải ném ra IllegalArgumentException
         try {
@@ -78,6 +129,37 @@ public class BuilderPatternTest {
         require(event.getTotalEstimate() == 5000, "Ước tính tổng số dòng phải khớp");
         require(event.getSpeedTxPerSec() == 1200, "Tốc độ thông lượng phải khớp");
         require("Cập nhật tiến trình mô phỏng".equals(event.getMessage()), "Thông điệp mô tả phải khớp");
+        expectIllegalState(() -> new SimulationEvent.Builder().build(),
+                "Event builder phải yêu cầu EventType");
+        expectIllegalState(() -> new SimulationEvent.Builder()
+                        .withType(EventType.CHECKPOINT_CREATED)
+                        .withTid(1)
+                        .build(),
+                "Checkpoint event phải có checkpoint payload");
+        expectIllegalState(() -> new SimulationEvent.Builder()
+                        .withType(EventType.TRANSACTION_PROCESSED)
+                        .withTid(1)
+                        .withSpeedTxPerSec(-1)
+                        .build(),
+                "Progress event không được có metadata âm");
+    }
+
+    private static void expectIllegalArgument(Runnable action, String message) {
+        try {
+            action.run();
+            throw new AssertionError(message);
+        } catch (IllegalArgumentException expected) {
+            // Expected validation failure.
+        }
+    }
+
+    private static void expectIllegalState(Runnable action, String message) {
+        try {
+            action.run();
+            throw new AssertionError(message);
+        } catch (IllegalStateException expected) {
+            // Expected validation failure.
+        }
     }
 
     private static void require(boolean condition, String message) {

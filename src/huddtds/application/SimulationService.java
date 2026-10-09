@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -43,6 +44,17 @@ public class SimulationService {
 
     public void addListener(SimulationListener listener) {
         listeners.add(Objects.requireNonNull(listener, "listener"));
+    }
+
+    public Subscription subscribe(SimulationListener listener) {
+        SimulationListener registeredListener = Objects.requireNonNull(listener, "listener");
+        addListener(registeredListener);
+        AtomicBoolean subscribed = new AtomicBoolean(true);
+        return () -> {
+            if (subscribed.compareAndSet(true, false)) {
+                removeListener(registeredListener);
+            }
+        };
     }
 
     public void removeListener(SimulationListener listener) {
@@ -136,8 +148,20 @@ public class SimulationService {
     }
 
     private void publish(SimulationEvent event) {
+        RuntimeException dispatchFailure = null;
         for (SimulationListener listener : listeners) {
-            listener.onUpdate(event);
+            try {
+                listener.onUpdate(event);
+            } catch (RuntimeException failure) {
+                if (dispatchFailure == null) {
+                    dispatchFailure = failure;
+                } else if (dispatchFailure != failure) {
+                    dispatchFailure.addSuppressed(failure);
+                }
+            }
+        }
+        if (dispatchFailure != null) {
+            throw dispatchFailure;
         }
     }
 
@@ -173,5 +197,11 @@ public class SimulationService {
             throw new IllegalStateException("Detected local drift must identify an affected itemset");
         }
         return "LOCAL DRIFT (" + result.getAffectedItemsets().get(0) + ")";
+    }
+
+    @FunctionalInterface
+    public interface Subscription extends AutoCloseable {
+        @Override
+        void close();
     }
 }

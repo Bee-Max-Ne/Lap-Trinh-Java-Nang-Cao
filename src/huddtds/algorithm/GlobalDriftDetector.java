@@ -4,8 +4,6 @@ import huddtds.algorithm.drift.GlobalDriftStrategy;
 import huddtds.math.UtilityMetrics;
 import huddtds.model.DriftResult;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -36,10 +34,11 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
     private final double alpha;
     private final double range;
 
-    /**
-     * Distance values received from checkpoints.
-     */
-    private final List<Double> distances;
+    private int observationCount;
+    private double totalSum;
+    private double cutPointSum;
+    private double referenceSum;
+    private double lastObservation;
 
     /**
      * Cut point m.
@@ -63,9 +62,11 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
         this.alpha = alpha;
         this.range = range;
 
-        this.distances =
-                new ArrayList<>();
-
+        this.observationCount = 0;
+        this.totalSum = 0.0;
+        this.cutPointSum = 0.0;
+        this.referenceSum = 0.0;
+        this.lastObservation = 0.0;
         this.cutPoint = 0;
         this.lastDirection = null;
         this.traceListener = null;
@@ -89,11 +90,15 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
             double observation,
             int oldCheckpointTid,
             int newCheckpointTid) {
-        distances.add(observation);
+        double previousTotal = totalSum;
+        totalSum += observation;
+        referenceSum += observation;
+        lastObservation = observation;
+        observationCount++;
 
         lastDirection = null;
 
-        int n = distances.size();
+        int n = observationCount;
 
         /*
          * Need at least two observations
@@ -112,6 +117,8 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
          */
         if (cutPoint == 0) {
             cutPoint = 1;
+            cutPointSum = previousTotal;
+            referenceSum = observation;
         }
 
         /*
@@ -132,11 +139,7 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
          *
          * Mean of d1 ... dm.
          */
-        double uDrift =
-                mean(
-                        0,
-                        m
-                );
+        double uDrift = cutPointSum / m;
 
         /*
          * --------------------------------------------------
@@ -145,11 +148,7 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
          *
          * Mean of d1 ... dn.
          */
-        double v =
-                mean(
-                        0,
-                        n
-                );
+        double v = totalSum / n;
 
         /*
          * --------------------------------------------------
@@ -274,6 +273,8 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
              * beginning of the next sequence.
              */
             cutPoint = n;
+            cutPointSum = totalSum;
+            referenceSum = 0.0;
 
             return DriftResult.globalDrift(
                     oldCheckpointTid,
@@ -295,35 +296,11 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
          */
         if (increasing || decreasing) {
             cutPoint = n;
+            cutPointSum = totalSum;
+            referenceSum = 0.0;
         }
 
         return DriftResult.noDrift(oldCheckpointTid, newCheckpointTid);
-    }
-
-    /**
-     * Calculate mean on:
-     *
-     * [fromInclusive, toExclusive)
-     */
-    private double mean(
-            int fromInclusive,
-            int toExclusive) {
-
-        if (fromInclusive >= toExclusive) {
-            return 0.0;
-        }
-
-        double sum = 0.0;
-
-        for (int i = fromInclusive;
-             i < toExclusive;
-             i++) {
-
-            sum += distances.get(i);
-        }
-
-        return sum /
-                (toExclusive - fromInclusive);
     }
 
     public String getLastDirection() {
@@ -332,36 +309,27 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
 
     public double getCurrentMean() {
 
-        if (distances.isEmpty()) {
+        if (observationCount == 0) {
             return 0.0;
         }
 
-        return mean(
-                0,
-                distances.size()
-        );
+        return totalSum / observationCount;
     }
 
     public double getReferenceMean() {
 
-        if (distances.isEmpty()) {
+        if (observationCount == 0) {
             return 0.0;
         }
 
-        int start =
-                Math.min(
-                        Math.max(cutPoint, 0),
-                        distances.size() - 1
-                );
-
-        return mean(
-                start,
-                distances.size()
-        );
+        int start = Math.min(Math.max(cutPoint, 0), observationCount - 1);
+        return start == cutPoint && cutPoint < observationCount
+                ? referenceSum / (observationCount - cutPoint)
+                : lastObservation;
     }
 
     public int getObservationCount() {
-        return distances.size();
+        return observationCount;
     }
 
     public int getCutPoint() {
@@ -370,8 +338,11 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
 
     public void reset() {
 
-        distances.clear();
-
+        observationCount = 0;
+        totalSum = 0.0;
+        cutPointSum = 0.0;
+        referenceSum = 0.0;
+        lastObservation = 0.0;
         cutPoint = 0;
 
         lastDirection = null;
