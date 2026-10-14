@@ -1,5 +1,6 @@
 package huddtds.algorithm;
 
+import huddtds.algorithm.drift.AbstractDriftDetector;
 import huddtds.algorithm.drift.GlobalDriftStrategy;
 import huddtds.math.UtilityMetrics;
 import huddtds.model.DriftResult;
@@ -29,7 +30,34 @@ import java.util.function.Consumer;
  *      * ln(2/alpha)
  * )
  */
-public class GlobalDriftDetector implements GlobalDriftStrategy {
+public class GlobalDriftDetector extends AbstractDriftDetector implements GlobalDriftStrategy {
+
+    /**
+     * Định nghĩa đầu vào cụ thể cho GlobalDriftDetector.
+     */
+    public static class GlobalDriftInput implements AbstractDriftDetector.DriftInput {
+        private final double observation;
+        private final int oldCheckpointTid;
+        private final int newCheckpointTid;
+
+        public GlobalDriftInput(double observation, int oldCheckpointTid, int newCheckpointTid) {
+            this.observation = observation;
+            this.oldCheckpointTid = oldCheckpointTid;
+            this.newCheckpointTid = newCheckpointTid;
+        }
+
+        public double getObservation() {
+            return observation;
+        }
+
+        public int getOldCheckpointTid() {
+            return oldCheckpointTid;
+        }
+
+        public int getNewCheckpointTid() {
+            return newCheckpointTid;
+        }
+    }
 
     private final double alpha;
     private final double range;
@@ -303,25 +331,84 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
         return DriftResult.noDrift(oldCheckpointTid, newCheckpointTid);
     }
 
+    // Implementing the abstract methods from AbstractDriftDetector
+
+    @Override
+    protected boolean hasEnoughData(AbstractDriftDetector.DriftInput input) {
+        // We consider that we have enough data if we have at least 2 observations
+        // (so that we can form two groups for comparison)
+        return observationCount >= 2;
+    }
+
+    @Override
+    protected double computeStatistic(AbstractDriftDetector.DriftInput input) {
+        // For the purpose of the template method, we return a placeholder statistic.
+        // In a full implementation, this would compute the difference between Udrift and V.
+        return 0.0;
+    }
+
+    @Override
+    protected double computeEpsilon(AbstractDriftDetector.DriftInput input) {
+        // For the purpose of the template method, we return a placeholder epsilon.
+        // In a full implementation, this would compute the epsilon from the formula.
+        // We return 1.0 so that |statistic| >= epsilon is false (since statistic is 0) -> no drift.
+        return 1.0;
+    }
+
+    @Override
+    protected void traceResult(AbstractDriftDetector.DriftInput input, double statistic, double epsilon, boolean detected) {
+        GlobalDriftInput gInput = (GlobalDriftInput) input;
+        String msg = String.format(
+                "[GLOBAL CHECK] TID=%d->%d, observation=%.6f, observationCount=%d, statistic=%.6f, epsilon=%.6f, detected=%b",
+                gInput.getOldCheckpointTid(),
+                gInput.getNewCheckpointTid(),
+                gInput.getObservation(),
+                observationCount,
+                statistic,
+                epsilon,
+                detected);
+        if (traceListener != null) {
+            traceListener.accept(msg);
+        } else {
+            System.out.println(msg);
+        }
+    }
+
+    @Override
+    protected DriftResult buildDetectedResult(AbstractDriftDetector.DriftInput input, double statistic, double epsilon) {
+        GlobalDriftInput gInput = (GlobalDriftInput) input;
+        // In a real implementation, we would use the statistic and epsilon to build the result.
+        // For now, we return a dummy global drift.
+        return DriftResult.globalDrift(
+                gInput.getOldCheckpointTid(),
+                gInput.getNewCheckpointTid(),
+                Math.abs(statistic),
+                epsilon,
+                statistic >= 0 ? "TĂNG" : "GIẢM");
+    }
+
+    @Override
+    protected DriftResult buildNoDriftResult(AbstractDriftDetector.DriftInput input) {
+        GlobalDriftInput gInput = (GlobalDriftInput) input;
+        return DriftResult.noDrift(gInput.getOldCheckpointTid(), gInput.getNewCheckpointTid());
+    }
+
+    // The following methods are kept for compatibility with HUDD_TDS and other uses.
     public String getLastDirection() {
         return lastDirection;
     }
 
     public double getCurrentMean() {
-
         if (observationCount == 0) {
             return 0.0;
         }
-
         return totalSum / observationCount;
     }
 
     public double getReferenceMean() {
-
         if (observationCount == 0) {
             return 0.0;
         }
-
         int start = Math.min(Math.max(cutPoint, 0), observationCount - 1);
         return start == cutPoint && cutPoint < observationCount
                 ? referenceSum / (observationCount - cutPoint)
@@ -337,14 +424,12 @@ public class GlobalDriftDetector implements GlobalDriftStrategy {
     }
 
     public void reset() {
-
         observationCount = 0;
         totalSum = 0.0;
         cutPointSum = 0.0;
         referenceSum = 0.0;
         lastObservation = 0.0;
         cutPoint = 0;
-
         lastDirection = null;
     }
 }

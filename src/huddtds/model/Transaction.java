@@ -11,7 +11,7 @@ import java.util.Map;
  */
 public class Transaction {
     /** Mã định danh của giao dịch */
-    private final int tid;
+    private int tid;
 
     /** Danh sách các phần tử thuộc giao dịch */
     private final List<Element> elements;
@@ -51,6 +51,14 @@ public class Transaction {
      */
     public int getTid() {
         return tid;
+    }
+
+    /**
+     * Thiết lập mã giao dịch mới (dùng khi tái sử dụng từ pool).
+     * @param newTid mã định danh mới của giao dịch
+     */
+    public void setTid(int newTid) {
+        this.tid = newTid;
     }
 
     /**
@@ -139,7 +147,7 @@ public class Transaction {
      * - Nếu các phần tử có utility > 0: cộng dồn utility của các phần tử.
      * - Ngược lại: tính theo công thức cổ điển (quantity * externalUtility).
      *
-     * @param externalUtilities bảng utility ngoại vi
+     * @param externalUtilities bảng utility ngoại vi (có thể là null)
      * @return tổng utility của giao dịch
      */
     public double calculateTotalUtility(Map<String, Double> externalUtilities) {
@@ -152,12 +160,42 @@ public class Transaction {
             if (element.getUtility() > 0.0) {
                 totalUtility += element.getUtility();
             } else {
-                double ext = (externalUtilities != null)
-                        ? externalUtilities.getOrDefault(element.getItem(), 1.0)
-                        : 1.0;
+                double ext;
+                if (externalUtilities != null && !externalUtilities.isEmpty()) {
+                    ext = externalUtilities.getOrDefault(element.getItem(), 1.0);
+                } else {
+                    // Sử dụng tiện ích ngoại vi từ Flyweight nếu không có bảng 외부 cung cấp
+                    ext = element.getFlyweight().getExternalUtility();
+                }
                 totalUtility += element.getQuantity() * ext;
             }
         }
         return totalUtility;
+    }
+
+    /**
+     * Đặt lại trạng thái của Transaction để tái sử dụng.
+     * <p>
+     * Phương thức này xóa tất cả các phần tử, đặt lại tổng utility về 0,
+     * nhưng giữ nguyên mã TID (để được設定 bởi phương thức acquire).
+     */
+    public void reset() {
+        elements.clear();
+        elementMap.clear();
+        transactionUtility = 0.0;
+        // tid giữ nguyên, sẽ được overwritten bởi acquire(int tid) nếu cần
+    }
+
+    /**
+     * Đặt lại trạng thái của Transaction để tái sử dụng với một TID mới.
+     * <p>
+     * Phương thức này xóa tất cả các phần tử, đặt lại tổng utility về 0,
+     * và thiết lập mã TID mới.
+     *
+     * @param newTid mã định danh giao dịch mới
+     */
+    public void reset(int newTid) {
+        this.tid = newTid;
+        reset();
     }
 }

@@ -7,6 +7,7 @@ import huddtds.model.Checkpoint;
 import huddtds.model.DriftResult;
 import huddtds.model.HighUtilityItemset;
 import huddtds.model.Transaction;
+import huddtds.model.pool.TransactionPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +33,9 @@ public class HUDD_TDS {
 
     /** Danh sách checkpoint đã sinh ra */
     private final List<Checkpoint> checkpoints;
+
+    /** Hồ chứa Transaction để tái sử dụng, giảmภาระ Garbage Collection */
+    private final TransactionPool transactionPool;
 
     /** Bộ phát hiện drift toàn cục */
     private final GlobalDriftStrategy globalDriftDetector;
@@ -84,6 +88,7 @@ public class HUDD_TDS {
         this.alphaConfidence = alphaConfidence;
         this.memory = new ArrayList<>();
         this.checkpoints = new ArrayList<>();
+        this.transactionPool = new TransactionPool(); // Default pool size
         this.globalDriftDetector = Objects.requireNonNull(globalDriftDetector, "globalDriftDetector");
         this.localDriftDetector = Objects.requireNonNull(localDriftDetector, "localDriftDetector");
         this.huiMiner = Objects.requireNonNull(huiMiner, "huiMiner");
@@ -98,6 +103,7 @@ public class HUDD_TDS {
         this.alphaConfidence = builder.alphaConfidence;
         this.memory = new ArrayList<>();
         this.checkpoints = new ArrayList<>();
+        this.transactionPool = new TransactionPool(); // Default pool size
         
         HUIItemsetMiner miner = builder.huiMiner;
         if (miner == null) {
@@ -110,11 +116,11 @@ public class HUDD_TDS {
         this.globalDriftDetector = builder.globalDriftDetector != null
                 ? builder.globalDriftDetector
                 : new GlobalDriftDetector(builder.alphaConfidence, 1.0);
-                
+                 
         this.localDriftDetector = builder.localDriftDetector != null
                 ? builder.localDriftDetector
                 : new LocalDriftDetector(builder.alphaConfidence, 100.0, builder.windowSize);
-                
+                 
         this.traceListener = null;
         this.traceEachTransaction = false;
     }
@@ -282,7 +288,9 @@ public class HUDD_TDS {
         // Quản trị bộ nhớ trượt: giữ lại tối đa 3 lần windowSize để phục vụ so sánh giữa các checkpoint
         int safeRetentionTid = tx.getTid() - (windowSize * 3);
         while (!memory.isEmpty() && memory.get(0).getTid() <= safeRetentionTid) {
-            memory.remove(0);
+            Transaction removedTx = memory.remove(0);
+            // Giải phóng transaction trả về pool để tái sử dụng
+            transactionPool.release(removedTx);
             removedTransactions++;
         }
 

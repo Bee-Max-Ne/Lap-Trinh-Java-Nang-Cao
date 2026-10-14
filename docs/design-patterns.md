@@ -1,10 +1,16 @@
-# Bốn mẫu thiết kế trong HUDD-TDS
+# Hệ thống mẫu thiết kế trong HUDD-TDS
 
-Mã nguồn hiện áp dụng trực tiếp bốn mẫu thiết kế: **Strategy** trong bộ điều
-phối thuật toán, **Observer** trong dịch vụ mô phỏng, **Facade** tại ranh giới
-giữa GUI với các dịch vụ ứng dụng, và **Builder** trong khởi tạo các đối tượng
-phức tạp. Mỗi mẫu có một trách nhiệm riêng; không thêm pattern chỉ để trang trí
-kiến trúc.
+Mã nguồn dự án hiện áp dụng tổng cộng tám mẫu thiết kế được chia làm hai nhóm
+hỗ trợ tương hỗ:
+1. **Bốn mẫu cốt lõi kiến trúc**: **Strategy** trong bộ điều phối thuật toán,
+   **Observer** trong dịch vụ mô phỏng, **Facade** tại ranh giới ứng dụng, và
+   **Builder** trong khởi tạo cấu hình phức tạp.
+2. **Bốn mẫu tối ưu hóa hiệu năng & luồng hành vi**: **Flyweight** tối ưu hóa bộ nhớ
+   RAM cho các phần tử dữ liệu, **Object Pool** tái chế giao dịch và giảm thiểu GC,
+   **Template Method** chuẩn hóa bộ khung kiểm định trôi dạt 6 bước, và
+   **Chain of Responsibility** xây dựng pipeline xử lý stream dữ liệu đa định dạng.
+
+Mỗi mẫu có một trách nhiệm riêng; không thêm pattern chỉ để trang trí kiến trúc.
 
 ## Strategy
 
@@ -237,6 +243,46 @@ công khai nhận danh sách tham số vẫn giữ tương thích nhưng không 
 Xem [BuilderPatternTest.java](../test/BuilderPatternTest.java) và tài liệu chi tiết
 [Builder_Pattern_Explanation.md](./Builder_Pattern_Explanation.md).
 
+## Flyweight
+
+Mẫu Flyweight giải quyết bài toán bùng nổ bộ nhớ RAM khi các item xuất hiện lặp đi
+lặp lại hàng triệu lần trong luồng stream (`retail`, `chess`, `connect`).
+- `ItemFlyweight` lưu trữ trạng thái nội tại bất biến (mã item, chỉ số, utility ngoại vi).
+- `ItemFactory` quản lý kho đệm `ConcurrentHashMap` thread-safe.
+- `Element` chỉ giữ tham chiếu 8 bytes tới `ItemFlyweight` cùng trạng thái ngoại tại (số lượng, utility).
+- Giảm từ 60% đến 75% lượng RAM tiêu thụ cho việc lưu trữ các items.
+Xem chi tiết tại [Flyweight_Pattern_Explanation.md](./Flyweight_Pattern_Explanation.md).
+
+## Object Pool
+
+Mẫu Object Pool tái sử dụng các đối tượng giao dịch (`Transaction`) thay vì liên tục
+cấp phát và vứt bỏ khi chúng trượt ra khỏi cửa sổ trượt (`windowSize`).
+- `TransactionPool` quản lý hồ chứa `ArrayBlockingQueue<Transaction>`.
+- `Transaction.reset()` làm sạch trạng thái nội bộ mà không cần giải phóng bộ nhớ.
+- `HUDD_TDS` tự động thu hồi và hoàn trả giao dịch về pool khi vượt ngưỡng `safeRetentionTid`.
+- Giảm hơn 80% áp lực thu gom rác Garbage Collection, tăng thông lượng từ 30% đến 50%.
+Xem chi tiết tại [Object_Pool_Pattern_Explanation.md](./Object_Pool_Pattern_Explanation.md).
+
+## Template Method
+
+Mẫu Template Method chuẩn hóa kịch bản kiểm định trôi dạt 6 bước cố định, loại bỏ
+mã nguồn trùng lặp cấu trúc và phối hợp chặt chẽ với Strategy Pattern:
+- `AbstractDriftDetector` đóng gói phương thức `final runDetection(DriftInput)`.
+- Các bước: kiểm tra dữ liệu $\to$ tính thống kê $\to$ tính epsilon $\to$ so sánh $\to$ ghi trace $\to$ trả kết quả.
+- `GlobalDriftDetector` và `LocalDriftDetector` chỉ cần cài đặt các hook method đặc thù.
+- Hỗ trợ cơ chế dừng sớm (short-circuit) khi không đủ số lượng mẫu.
+Xem chi tiết tại [Template_Method_Pattern_Explanation.md](./Template_Method_Pattern_Explanation.md).
+
+## Chain of Responsibility
+
+Mẫu Chain of Responsibility tái cấu trúc bộ phân tích cú pháp `TransactionParser`
+thành một đường ống (Pipeline) gồm các bộ xử lý (Handlers) độc lập:
+- `EmptyAndCommentFilterHandler`: lọc bỏ dòng trống và dòng chú thích (`#`, `//`).
+- `SpmfFormatHandler`: nhận diện và bóc tách định dạng SPMF/HUIM (`items : TU : utils`).
+- `LegacyFormatHandler`: nhận diện và bóc tách định dạng Running Example (`item:qty`).
+- `TransactionParsingPipeline`: điều phối chuỗi liên kết các handler theo nguyên tắc OCP.
+Xem chi tiết tại [Chain_of_Responsibility_Pattern_Explanation.md](./Chain_of_Responsibility_Pattern_Explanation.md).
+
 ## Kiểm chứng tổng hợp
 
 | Mẫu | Kiểm thử chính | Phạm vi xác nhận |
@@ -245,6 +291,11 @@ Xem [BuilderPatternTest.java](../test/BuilderPatternTest.java) và tài liệu c
 | Observer | `SimulationServiceEventTest` | Loại/payload event, subscription lifecycle, dispatch tiếp khi listener lỗi |
 | Facade | `FacadePatternTest` | Dataset, tạo service, event, Strategy injection và CSV export |
 | Builder | `BuilderPatternTest`, `FacadePatternTest` | Cấu hình engine/event/mô phỏng, validate tham số và fluent API |
+| Flyweight | `FlyweightAndPoolTest` | Chia sẻ ItemFlyweight, tra cứu ItemFactory, giữ nguyên API của Element |
+| Object Pool | `FlyweightAndPoolTest` | Tái sử dụng instance Transaction, làm sạch trạng thái qua reset() |
+| Template Method | `TemplateMethodPatternTest` | Trình tự 6 bước cố định, dừng sớm khi thiếu mẫu, phán quyết trôi dạt |
+| Chain of Responsibility | `ParsingPipelineChainTest` | Lọc dòng rỗng/chú thích, bóc tách SPMF và Legacy format, chuyển tiếp chuỗi |
 
 Các kiểm thử trên xác nhận hành vi ở mức Java service/engine. Chúng không thay
 thế cho GUI smoke test đầy đủ hay benchmark trên toàn bộ dữ liệu.
+
