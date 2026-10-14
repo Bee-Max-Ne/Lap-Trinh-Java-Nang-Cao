@@ -146,10 +146,23 @@ public class HUDD_TDS_GUI extends JFrame {
 
         gbc.gridx = 1;
         List<String> datasetOptions = new ArrayList<>(datasetManager.getDatasetNames());
+        String[] standardDatasets = new String[]{
+                "Accidents-metadata", "Chainstore-metadata", "Chess-metadata",
+                "connects-metadata", "mushrooms-metadata", "NewChess-Metadata",
+                "NewConnects-Metadata", "NewMushroom-Metadata", "Retail-metadata"
+        };
+        for (String std : standardDatasets) {
+            if (!datasetOptions.contains(std)) {
+                datasetOptions.add(std);
+            }
+        }
+        datasetOptions.sort(String.CASE_INSENSITIVE_ORDER);
+        datasetOptions.remove("Running Example (Mẫu)");
+        datasetOptions.remove("[+ Duyệt tệp ngoài...]");
         datasetOptions.add(0, "Running Example (Mẫu)");
         datasetOptions.add("[+ Duyệt tệp ngoài...]");
         cbDatasets = new JComboBox<>(datasetOptions.toArray(String[]::new));
-        cbDatasets.setPreferredSize(new Dimension(175, 25));
+        cbDatasets.setPreferredSize(new Dimension(195, 25));
         configPanel.add(cbDatasets, gbc);
 
         gbc.gridx = 2;
@@ -438,6 +451,21 @@ public class HUDD_TDS_GUI extends JFrame {
         // Lọc bảng Drift theo loại
         cbFilterDrift.addActionListener(e -> applyDriftFilter());
 
+        // Tự động cập nhật bản xem trước của Thống kê Tổng quan khi thay đổi tham số
+        DocumentListener paramListener = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { updateSummaryStatsPreview(); }
+            @Override
+            public void removeUpdate(DocumentEvent e) { updateSummaryStatsPreview(); }
+            @Override
+            public void changedUpdate(DocumentEvent e) { updateSummaryStatsPreview(); }
+        };
+        txtMinUtil.getDocument().addDocumentListener(paramListener);
+        txtInterval.getDocument().addDocumentListener(paramListener);
+        txtWindowSize.getDocument().addDocumentListener(paramListener);
+        txtAlpha.getDocument().addDocumentListener(paramListener);
+        txtMaxPattern.getDocument().addDocumentListener(paramListener);
+
         // Nạp tham số mặc định theo dataset ban đầu
         onDatasetChanged();
     }
@@ -585,6 +613,40 @@ public class HUDD_TDS_GUI extends JFrame {
             txtMaxPattern.setText("3");
             txtMaxTransactions.setText("0");
         }
+
+        updateSummaryStatsPreview();
+    }
+
+    private void updateSummaryStatsPreview() {
+        if (currentWorker != null && !currentWorker.isDone()) {
+            return;
+        }
+        String selected = (String) cbDatasets.getSelectedItem();
+        if (selected == null) selected = "Running Example (Mẫu)";
+        try {
+            double minutil = Double.parseDouble(txtMinUtil.getText().trim());
+            int interval = Integer.parseInt(txtInterval.getText().trim());
+            int windowSize = Integer.parseInt(txtWindowSize.getText().trim());
+            double alpha = Double.parseDouble(txtAlpha.getText().trim());
+            int maxPattern = Integer.parseInt(txtMaxPattern.getText().trim());
+
+            summaryStatsArea.setText(String.format(Locale.US,
+                    "=== BÁO CÁO KẾT THÚC THỰC NGHIỆM HUDD-TDS ===%n"
+                            + "Dataset: %s%n"
+                            + "MinUtil: %.2f | Interval: %d | Window: %d | Alpha: %.2f | Max Len: %d%n"
+                            + "----------------------------------------%n"
+                            + "Tổng số Giao dịch: 0%n"
+                            + "Tổng số Checkpoint: 0%n"
+                            + "Số lần phát hiện Global Drift: 0%n"
+                            + "Số lần phát hiện Local Drift: 0%n"
+                            + "Tổng thời gian: 0.00 giây%n"
+                            + "Tốc độ thông lượng: 0 tx/giây%n"
+                            + "Trạng thái: SẴN SÀNG PHÁT LUỒNG (Nhấn 'Phát luồng (RUN)' để tiến hành)%n",
+                    selected, minutil, interval, windowSize, alpha, maxPattern
+            ));
+        } catch (Exception e) {
+            summaryStatsArea.setText("Chưa có thống kê thực nghiệm. Nhấn 'Phát luồng (RUN)' để tiến hành.");
+        }
     }
 
     private void onValidateDataset() {
@@ -721,7 +783,7 @@ public class HUDD_TDS_GUI extends JFrame {
         progressBar.setValue(0);
         progressBar.setString("Sẵn sàng phát luồng");
         calculationDetails.setText("Hệ thống đã đặt lại trạng thái ban đầu.");
-        summaryStatsArea.setText("Chưa có thống kê thực nghiệm.");
+        updateSummaryStatsPreview();
         processLogArea.setText("");
         currentProcessLogFile = null;
     }
@@ -1146,20 +1208,20 @@ public class HUDD_TDS_GUI extends JFrame {
                             "=== BÁO CÁO TỔNG HỢP TIẾN TRÌNH HUDD-TDS ===%n"
                                     + "Dataset: %s%n"
                                     + "MinUtil: %.2f | Interval: %d | Window: %d | Alpha: %.2f | Max Len: %d%n"
-                                    + "--------------------------------------------------------%n"
-                                    + "Tổng số Giao dịch đã xử lý: %,d%n"
+                                    + "----------------------------------------%n"
+                                    + "Tổng số Giao dịch: %,d%n"
                                     + "Tổng số Checkpoint: %,d%n"
                                     + "Số lần phát hiện Global Drift: %,d%n"
                                     + "Số lần phát hiện Local Drift: %,d%n"
-                                    + "Thời gian thực thi: %.2f giây%n"
-                                    + "Tốc độ trung bình: %,d tx/giây%n"
-                                    + "Trạng thái hiện tại: %s%n",
+                                    + "Tổng thời gian: %.2f giây%n"
+                                    + "Tốc độ thông lượng: %,d tx/giây%n"
+                                    + "Trạng thái: %s%n",
                             datasetName, minutil, interval, windowSize, alpha, maxPattern,
                             totalProcessedTransactions, totalCheckpointsCount,
                             totalGlobalDriftsCount, totalLocalDriftsCount,
                             elapsed / 1000.0,
                             (int) ((totalProcessedTransactions * 1000.0) / elapsed),
-                            (paused ? "ĐANG TẠM DỪNG" : "ĐANG CHẠY")
+                            (paused ? "ĐANG TẠM DỪNG" : "ĐANG PHÁT LUỒNG...")
                     ));
                 }
             }
@@ -1202,20 +1264,20 @@ public class HUDD_TDS_GUI extends JFrame {
                     "=== BÁO CÁO KẾT THÚC THỰC NGHIỆM HUDD-TDS ===%n"
                             + "Dataset: %s%n"
                             + "MinUtil: %.2f | Interval: %d | Window: %d | Alpha: %.2f | Max Len: %d%n"
-                            + "--------------------------------------------------------%n"
+                            + "----------------------------------------%n"
                             + "Tổng số Giao dịch: %,d%n"
                             + "Tổng số Checkpoint: %,d%n"
                             + "Số lần phát hiện Global Drift: %,d%n"
                             + "Số lần phát hiện Local Drift: %,d%n"
                             + "Tổng thời gian: %.2f giây%n"
                             + "Tốc độ thông lượng: %,d tx/giây%n"
-                                + "Trạng thái: %s%n",
+                            + "Trạng thái: %s%n",
                     datasetName, minutil, interval, windowSize, alpha, maxPattern,
                     totalProcessedTransactions, totalCheckpointsCount,
                     totalGlobalDriftsCount, totalLocalDriftsCount,
                     elapsed / 1000.0,
-                            (int) ((totalProcessedTransactions * 1000.0) / elapsed),
-                            completed ? "HOÀN TẤT THÀNH CÔNG ✓" : (isCancelled() ? "ĐÃ DỪNG" : "KẾT THÚC DO LỖI")
+                    (int) ((totalProcessedTransactions * 1000.0) / elapsed),
+                    completed ? "HOÀN TẤT THÀNH CÔNG ✓" : (isCancelled() ? "ĐÃ DỪNG" : "KẾT THÚC DO LỖI")
             ));
         }
     }

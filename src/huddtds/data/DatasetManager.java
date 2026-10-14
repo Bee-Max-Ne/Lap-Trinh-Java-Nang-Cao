@@ -24,9 +24,17 @@ public class DatasetManager {
         }
 
         // Bổ sung các vị trí chứa dataset thực tế
-        File capNhatDir = new File("Dataset-metadata (CapNhat 14-02)");
-        if (capNhatDir.exists()) {
-            this.searchDirectories.add(capNhatDir);
+        File[] possibleMetadataDirs = new File[] {
+            new File("Dataset-metadata (CapNhat 14-02)"),
+            new File("..", "Dataset-metadata (CapNhat 14-02)"),
+            new File("../..", "Dataset-metadata (CapNhat 14-02)"),
+            new File("F:/Lap-Trinh-Java-Nang-Cao/Dataset-metadata (CapNhat 14-02)"),
+            new File(System.getProperty("user.dir"), "Dataset-metadata (CapNhat 14-02)")
+        };
+        for (File d : possibleMetadataDirs) {
+            if (d.exists() && d.isDirectory() && !this.searchDirectories.contains(d)) {
+                this.searchDirectories.add(d);
+            }
         }
 
         File currentDir = new File(".");
