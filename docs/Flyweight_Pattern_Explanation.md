@@ -1,78 +1,84 @@
-# Flyweight Pattern trong HUDD-TDS
+﻿# Flyweight Pattern trong HUDD-TDS
 
-## 1. Mục đích
-Flyweight Pattern là mẫu thiết kế thuộc nhóm **Cấu trúc (Structural Pattern)**. Mục đích chính của Flyweight trong dự án HUDD-TDS là:
-- **Tối ưu hóa bộ nhớ RAM**: Chia sẻ trạng thái nội tại (intrinsic state) của các phần tử dữ liệu (Item) xuất hiện lặp đi lặp lại hàng triệu lần trong luồng giao dịch.
-- **Giảm áp lực Garbage Collector (GC)**: Ngăn chặn việc cấp phát hàng triệu đối tượng `String` và `Element` giống nhau khi nạp các dataset lớn như `retail`, `chess`, `connect`.
-- **Tăng tốc độ so sánh tập mục**: Thay vì so sánh chuỗi ký tự tốn kém `String.equals()`, các phần tử chia sẻ chung một định danh duy nhất cho phép so sánh tham chiếu hoặc so sánh chỉ số nguyên $O(1)$.
+## 1. Má»¥c Ä‘Ã­ch
+Flyweight Pattern lÃ  máº«u thiáº¿t káº¿ thuá»™c nhÃ³m **Cáº¥u trÃºc (Structural Pattern)**. Má»¥c Ä‘Ã­ch chÃ­nh cá»§a Flyweight trong dá»± Ã¡n HUDD-TDS lÃ :
+- **Tá»‘i Æ°u hÃ³a bá»™ nhá»› RAM**: Chia sáº» tráº¡ng thÃ¡i ná»™i táº¡i (intrinsic state) cá»§a cÃ¡c pháº§n tá»­ dá»¯ liá»‡u (Item) xuáº¥t hiá»‡n láº·p Ä‘i láº·p láº¡i hÃ ng triá»‡u láº§n trong luá»“ng giao dá»‹ch.
+- **Giáº£m Ã¡p lá»±c Garbage Collector (GC)**: NgÄƒn cháº·n viá»‡c cáº¥p phÃ¡t hÃ ng triá»‡u Ä‘á»‘i tÆ°á»£ng `String` vÃ  `Element` giá»‘ng nhau khi náº¡p cÃ¡c dataset lá»›n nhÆ° `retail`, `chess`, `connect`.
+- **TÄƒng tá»‘c Ä‘á»™ so sÃ¡nh táº­p má»¥c**: Thay vÃ¬ so sÃ¡nh chuá»—i kÃ½ tá»± tá»‘n kÃ©m `String.equals()`, cÃ¡c pháº§n tá»­ chia sáº» chung má»™t Ä‘á»‹nh danh duy nháº¥t cho phÃ©p so sÃ¡nh tham chiáº¿u hoáº·c so sÃ¡nh chá»‰ sá»‘ nguyÃªn $O(1)$.
 
 ---
 
-## 2. Luồng sử dụng & Vị trí áp dụng
+## 2. Luá»“ng sá»­ dá»¥ng & Vá»‹ trÃ­ Ã¡p dá»¥ng
 
 ```text
-Dòng dữ liệu Stream (transactions.txt)
-             │
-             ▼
+DÃ²ng dá»¯ liá»‡u Stream (transactions.txt)
+             â”‚
+             â–¼
       TransactionParser
-             │ (Phân tích cú pháp)
-             ▼
-        ItemFactory ◄──────────── Kiểm tra cache ConcurrentHashMap
-             │                     (Lấy hoặc tạo mới ItemFlyweight duy nhất)
-             ▼
-        Element ───────────────► Tham chiếu ItemFlyweight (Intrinsic: id, index, extUtil)
-             │                   (Extrinsic: quantity, transaction utility)
-             ▼
-        Transaction ───────────► Lưu trữ trong cửa sổ trượt (HUDD_TDS memory)
+             â”‚ (PhÃ¢n tÃ­ch cÃº phÃ¡p)
+             â–¼
+        ItemFactory â—„â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Kiá»ƒm tra cache ConcurrentHashMap
+             â”‚                     (Láº¥y hoáº·c táº¡o má»›i ItemFlyweight duy nháº¥t)
+             â–¼
+        Element â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º Tham chiáº¿u ItemFlyweight (Intrinsic: id, index, extUtil)
+             â”‚                   (Extrinsic: quantity, transaction utility)
+             â–¼
+        Transaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º LÆ°u trá»¯ trong cá»­a sá»• trÆ°á»£t (HUDD_TDS memory)
 ```
 
-### Các lớp tham gia:
-| Tệp / Lớp | Vai trò | Trách nhiệm |
+### CÃ¡c lá»›p tham gia:
+| Tá»‡p / Lá»›p | Vai trÃ² | TrÃ¡ch nhiá»‡m |
 | :--- | :--- | :--- |
-| [`ItemFlyweight.java`](../src/huddtds/model/flyweight/ItemFlyweight.java) | **Concrete Flyweight** | Chứa trạng thái nội tại bất biến (immutable): mã item (`id`), chỉ số (`index`), và tiện ích ngoại vi mặc định (`externalUtility`). |
-| [`ItemFactory.java`](../src/huddtds/model/flyweight/ItemFactory.java) | **Flyweight Factory** | Quản lý kho lưu trữ đệm thread-safe (`ConcurrentHashMap`) các `ItemFlyweight`. Cung cấp phương thức `getOrCreate(itemId, extUtil)`. |
-| [`Element.java`](../src/huddtds/model/Element.java) | **Context / Client** | Chứa trạng thái ngoại tại (extrinsic): số lượng mua (`quantity`), tiện ích thực tế trong giao dịch (`utility`), và giữ tham chiếu tới `ItemFlyweight`. |
-| [`Transaction.java`](../src/huddtds/model/Transaction.java) | **Container** | Tập hợp các `Element` tạo nên một giao dịch hoàn chỉnh trong luồng. |
+| [`ItemFlyweight.java`](../src/huddtds/model/flyweight/ItemFlyweight.java) | **Concrete Flyweight** | Chá»©a tráº¡ng thÃ¡i ná»™i táº¡i báº¥t biáº¿n (immutable): mÃ£ item (`id`), chá»‰ sá»‘ (`index`), vÃ  tiá»‡n Ã­ch ngoáº¡i vi máº·c Ä‘á»‹nh (`externalUtility`). |
+| [`ItemFactory.java`](../src/huddtds/model/flyweight/ItemFactory.java) | **Flyweight Factory** | Quáº£n lÃ½ kho lÆ°u trá»¯ Ä‘á»‡m thread-safe (`ConcurrentHashMap`) cÃ¡c `ItemFlyweight`. Cung cáº¥p phÆ°Æ¡ng thá»©c `getOrCreate(itemId, extUtil)`. |
+| [`Element.java`](../src/huddtds/model/Element.java) | **Context / Client** | Chá»©a tráº¡ng thÃ¡i ngoáº¡i táº¡i (extrinsic): sá»‘ lÆ°á»£ng mua (`quantity`), tiá»‡n Ã­ch thá»±c táº¿ trong giao dá»‹ch (`utility`), vÃ  giá»¯ tham chiáº¿u tá»›i `ItemFlyweight`. |
+| [`Transaction.java`](../src/huddtds/model/Transaction.java) | **Container** | Táº­p há»£p cÃ¡c `Element` táº¡o nÃªn má»™t giao dá»‹ch hoÃ n chá»‰nh trong luá»“ng. |
 
 ---
 
-## 3. Cấu trúc Trước & Sau khi áp dụng (Before vs After)
+## 3. Cáº¥u trÃºc TrÆ°á»›c & Sau khi Ã¡p dá»¥ng (Before vs After)
 
-### ❌ Trước khi áp dụng:
-Mỗi khi đọc một dòng giao dịch (ví dụ: `1 2 3 : 6.0 : 1.0 2.0 3.0`), hệ thống tạo ra các chuỗi `new String("1")`, `new String("2")` và đối tượng `new Element("1", 1.0)`.
-- Khi cửa sổ trượt giữ 50,000 giao dịch, mỗi giao dịch có 20 phần tử $\to$ phát sinh **1,000,000 đối tượng chuỗi String độc lập**.
-- Dung lượng RAM bị lãng phí cho overhead của header đối tượng Java và các mảng byte trùng lặp bên trong String.
+### âŒ TrÆ°á»›c khi Ã¡p dá»¥ng:
+Má»—i khi Ä‘á»c má»™t dÃ²ng giao dá»‹ch (vÃ­ dá»¥: `1 2 3 : 6.0 : 1.0 2.0 3.0`), há»‡ thá»‘ng táº¡o ra cÃ¡c chuá»—i `new String("1")`, `new String("2")` vÃ  Ä‘á»‘i tÆ°á»£ng `new Element("1", 1.0)`.
+- Khi cá»­a sá»• trÆ°á»£t giá»¯ 50,000 giao dá»‹ch, má»—i giao dá»‹ch cÃ³ 20 pháº§n tá»­ $\to$ phÃ¡t sinh **1,000,000 Ä‘á»‘i tÆ°á»£ng chuá»—i String Ä‘á»™c láº­p**.
+- Dung lÆ°á»£ng RAM bá»‹ lÃ£ng phÃ­ cho overhead cá»§a header Ä‘á»‘i tÆ°á»£ng Java vÃ  cÃ¡c máº£ng byte trÃ¹ng láº·p bÃªn trong String.
 
-### ✅ Sau khi áp dụng:
-`ItemFactory` lưu trữ một bản thể duy nhất cho mỗi mã item phân biệt (ví dụ dataset `chess` chỉ có 75 items phân biệt):
+### âœ… Sau khi Ã¡p dá»¥ng:
+`ItemFactory` lÆ°u trá»¯ má»™t báº£n thá»ƒ duy nháº¥t cho má»—i mÃ£ item phÃ¢n biá»‡t (vÃ­ dá»¥ dataset `chess` chá»‰ cÃ³ 75 items phÃ¢n biá»‡t):
 ```java
-// ItemFlyweight được tạo 1 lần duy nhất trong ItemFactory
+// ItemFlyweight Ä‘Æ°á»£c táº¡o 1 láº§n duy nháº¥t trong ItemFactory
 ItemFlyweight item1 = ItemFactory.getOrCreate("1", 1.0);
 
-// Mọi giao dịch xuất hiện item "1" đều chia sẻ chung instance này
+// Má»i giao dá»‹ch xuáº¥t hiá»‡n item "1" Ä‘á»u chia sáº» chung instance nÃ y
 public class Element {
-    private final ItemFlyweight flyweight; // Tham chiếu dùng chung 8 bytes
-    private final int quantity;            // Trạng thái ngoại tại
-    private final double utility;             // Trạng thái ngoại tại
+    private final ItemFlyweight flyweight; // Tham chiáº¿u dÃ¹ng chung 8 bytes
+    private final int quantity;            // Tráº¡ng thÃ¡i ngoáº¡i táº¡i
+    private final double utility;             // Tráº¡ng thÃ¡i ngoáº¡i táº¡i
 }
 ```
 
 ---
 
-## 4. Mối quan hệ với các mẫu thiết kế khác
-1. **Hỗ trợ Strategy Pattern (`HUIDiscovery`)**:
-   Khi thuật toán khai phá tập mục duyệt qua danh sách giao dịch trong cửa sổ trượt, việc so sánh mã mục và tính toán TWU được hưởng lợi từ việc các phần tử chia sẻ chung Flyweight, giảm chi phí dereference bộ nhớ đệm CPU.
-2. **Hỗ trợ Object Pool (`TransactionPool`)**:
-   Khi một `Transaction` được tái chế trong Pool, danh sách `Element` của nó giải phóng các tham chiếu Flyweight một cách nhanh chóng mà không để lại rác bộ nhớ String cho GC.
-3. **Bảo toàn tính tương thích ngược**:
-   Các phương thức `element.getItem()`, `element.getQuantity()`, `element.getUtility()` được giữ nguyên chữ ký 100%, giúp toàn bộ tầng thuật toán và GUI không bị ảnh hưởng.
+## 4. Má»‘i quan há»‡ vá»›i cÃ¡c máº«u thiáº¿t káº¿ khÃ¡c
+1. **Há»— trá»£ Strategy Pattern (`HUIDiscovery`)**:
+   Khi thuáº­t toÃ¡n khai phÃ¡ táº­p má»¥c duyá»‡t qua danh sÃ¡ch giao dá»‹ch trong cá»­a sá»• trÆ°á»£t, viá»‡c so sÃ¡nh mÃ£ má»¥c vÃ  tÃ­nh toÃ¡n TWU Ä‘Æ°á»£c hÆ°á»Ÿng lá»£i tá»« viá»‡c cÃ¡c pháº§n tá»­ chia sáº» chung Flyweight, giáº£m chi phÃ­ dereference bá»™ nhá»› Ä‘á»‡m CPU.
+2. **Há»— trá»£ Object Pool (`TransactionPool`)**:
+   Khi má»™t `Transaction` Ä‘Æ°á»£c tÃ¡i cháº¿ trong Pool, danh sÃ¡ch `Element` cá»§a nÃ³ giáº£i phÃ³ng cÃ¡c tham chiáº¿u Flyweight má»™t cÃ¡ch nhanh chÃ³ng mÃ  khÃ´ng Ä‘á»ƒ láº¡i rÃ¡c bá»™ nhá»› String cho GC.
+3. **Báº£o toÃ n tÃ­nh tÆ°Æ¡ng thÃ­ch ngÆ°á»£c**:
+   CÃ¡c phÆ°Æ¡ng thá»©c `element.getItem()`, `element.getQuantity()`, `element.getUtility()` Ä‘Æ°á»£c giá»¯ nguyÃªn chá»¯ kÃ½ 100%, giÃºp toÃ n bá»™ táº§ng thuáº­t toÃ¡n vÃ  GUI khÃ´ng bá»‹ áº£nh hÆ°á»Ÿng.
 
 ---
 
-## 5. Kiểm chứng thực nghiệm
+## 5. Kiá»ƒm chá»©ng thá»±c nghiá»‡m
 
-Bài kiểm thử tự động [`FlyweightAndPoolTest.java`](../test/FlyweightAndPoolTest.java) xác nhận:
-- `ItemFactory.getOrCreate` trả về cùng một instance cho các item có cùng mã định danh (`fw1 == fw2`).
-- Các `Element` khác nhau khởi tạo cùng tên item đều chia sẻ chung một `ItemFlyweight`.
-- Mức tiêu thụ bộ nhớ RAM giảm đáng kể từ 60% đến 75% trên các dataset có số lượng item lặp lại cao.
+BÃ i kiá»ƒm thá»­ tá»± Ä‘á»™ng [`FlyweightAndPoolTest.java`](../test/FlyweightAndPoolTest.java) xÃ¡c nháº­n:
+- `ItemFactory.getOrCreate` tráº£ vá» cÃ¹ng má»™t instance cho cÃ¡c item cÃ³ cÃ¹ng mÃ£ Ä‘á»‹nh danh (`fw1 == fw2`).
+- CÃ¡c `Element` khÃ¡c nhau khá»Ÿi táº¡o cÃ¹ng tÃªn item Ä‘á»u chia sáº» chung má»™t `ItemFlyweight`.
+- Má»©c tiÃªu thá»¥ bá»™ nhá»› RAM giáº£m Ä‘Ã¡ng ká»ƒ tá»« 60% Ä‘áº¿n 75% trÃªn cÃ¡c dataset cÃ³ sá»‘ lÆ°á»£ng item láº·p láº¡i cao.
 
+
+## Chi tiết thay đổi code
+- **Files newly created**: src/huddtds/model/flyweight/ItemFlyweight.java, src/huddtds/model/flyweight/ItemFactory.java
+- **Files modified**:
+  - src/huddtds/model/Element.java: added ItemFlyweight field, refactored constructors to use ItemFactory.getOrCreate, added getFlyweight(), retained original getters for backward compatibility.
+  - src/huddtds/model/Transaction.java: updated calculateTotalUtility to use flyweight's externalUtility when externalUtilities map is null/empty.

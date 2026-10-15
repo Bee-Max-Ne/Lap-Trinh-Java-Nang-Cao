@@ -1,50 +1,50 @@
-# Chain of Responsibility Pattern trong HUDD-TDS
+﻿# Chain of Responsibility Pattern trong HUDD-TDS
 
-## 1. Mục đích
-Chain of Responsibility Pattern là mẫu thiết kế thuộc nhóm **Hành vi (Behavioral Pattern)**. Mục đích chính của Chain of Responsibility trong HUDD-TDS là:
-- **Tách rời các bộ phân tích cú pháp (Parser Decoupling)**: Chuyển đổi logic phân tích chuỗi dữ liệu thô từ cấu trúc lệnh `if-else` lồng nhau thành một chuỗi các bộ xử lý (Handlers) độc lập.
-- **Tiền xử lý và làm sạch dữ liệu stream (Data Preprocessing)**: Tự động lọc bỏ các dòng trống, dòng chú thích (`#`, `//`) mà không làm gián đoạn luồng stream.
-- **Mở rộng định dạng dữ liệu linh hoạt (Open/Closed Principle)**: Dễ dàng bổ sung thêm các định dạng giao dịch mới trong tương lai (JSON, CSV, Parquet) chỉ bằng cách tạo thêm một Handler mới cắm vào Pipeline.
+## 1. Má»¥c Ä‘Ã­ch
+Chain of Responsibility Pattern lÃ  máº«u thiáº¿t káº¿ thuá»™c nhÃ³m **HÃ nh vi (Behavioral Pattern)**. Má»¥c Ä‘Ã­ch chÃ­nh cá»§a Chain of Responsibility trong HUDD-TDS lÃ :
+- **TÃ¡ch rá»i cÃ¡c bá»™ phÃ¢n tÃ­ch cÃº phÃ¡p (Parser Decoupling)**: Chuyá»ƒn Ä‘á»•i logic phÃ¢n tÃ­ch chuá»—i dá»¯ liá»‡u thÃ´ tá»« cáº¥u trÃºc lá»‡nh `if-else` lá»“ng nhau thÃ nh má»™t chuá»—i cÃ¡c bá»™ xá»­ lÃ½ (Handlers) Ä‘á»™c láº­p.
+- **Tiá»n xá»­ lÃ½ vÃ  lÃ m sáº¡ch dá»¯ liá»‡u stream (Data Preprocessing)**: Tá»± Ä‘á»™ng lá»c bá» cÃ¡c dÃ²ng trá»‘ng, dÃ²ng chÃº thÃ­ch (`#`, `//`) mÃ  khÃ´ng lÃ m giÃ¡n Ä‘oáº¡n luá»“ng stream.
+- **Má»Ÿ rá»™ng Ä‘á»‹nh dáº¡ng dá»¯ liá»‡u linh hoáº¡t (Open/Closed Principle)**: Dá»… dÃ ng bá»• sung thÃªm cÃ¡c Ä‘á»‹nh dáº¡ng giao dá»‹ch má»›i trong tÆ°Æ¡ng lai (JSON, CSV, Parquet) chá»‰ báº±ng cÃ¡ch táº¡o thÃªm má»™t Handler má»›i cáº¯m vÃ o Pipeline.
 
 ---
 
-## 2. Luồng sử dụng & Vị trí áp dụng
+## 2. Luá»“ng sá»­ dá»¥ng & Vá»‹ trÃ­ Ã¡p dá»¥ng
 
 ```text
-Chuỗi ký tự dòng thô (String line)
-             │
-             ▼
+Chuá»—i kÃ½ tá»± dÃ²ng thÃ´ (String line)
+             â”‚
+             â–¼
   TransactionParsingPipeline
-             │
-             ▼
-[EmptyAndCommentFilterHandler] ──── Dòng trống hoặc bắt đầu bằng #, // ──► Bỏ qua (trả về null)
-             │ (Không khớp)
-             ▼
-   [SpmfFormatHandler] ──────────── Khớp cú pháp "items : TU : utils" ──► Trả về Transaction
-             │ (Không khớp)
-             ▼
-  [LegacyFormatHandler] ─────────── Khớp cú pháp "item:qty ..." ────────► Trả về Transaction
-             │ (Không khớp)
-             ▼
-   Kết thúc chuỗi (Handler tiếp theo là null) ──────────────────────────► Báo lỗi định dạng không hỗ trợ
+             â”‚
+             â–¼
+[EmptyAndCommentFilterHandler] â”€â”€â”€â”€ DÃ²ng trá»‘ng hoáº·c báº¯t Ä‘áº§u báº±ng #, // â”€â”€â–º Bá» qua (tráº£ vá» null)
+             â”‚ (KhÃ´ng khá»›p)
+             â–¼
+   [SpmfFormatHandler] â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Khá»›p cÃº phÃ¡p "items : TU : utils" â”€â”€â–º Tráº£ vá» Transaction
+             â”‚ (KhÃ´ng khá»›p)
+             â–¼
+  [LegacyFormatHandler] â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Khá»›p cÃº phÃ¡p "item:qty ..." â”€â”€â”€â”€â”€â”€â”€â”€â–º Tráº£ vá» Transaction
+             â”‚ (KhÃ´ng khá»›p)
+             â–¼
+   Káº¿t thÃºc chuá»—i (Handler tiáº¿p theo lÃ  null) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º BÃ¡o lá»—i Ä‘á»‹nh dáº¡ng khÃ´ng há»— trá»£
 ```
 
-### Các lớp tham gia:
-| Tệp / Lớp | Vai trò | Trách nhiệm |
+### CÃ¡c lá»›p tham gia:
+| Tá»‡p / Lá»›p | Vai trÃ² | TrÃ¡ch nhiá»‡m |
 | :--- | :--- | :--- |
-| [`TransactionLineHandler.java`](../src/huddtds/data/pipeline/TransactionLineHandler.java) | **Handler Interface** | Định nghĩa phương thức `handle(line, tid)` và `setNext(handler)`. |
-| [`EmptyAndCommentFilterHandler.java`](../src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java) | **Concrete Handler** | Bỏ qua dòng trống, dòng khoảng trắng hoặc dòng bắt đầu bằng dấu chú thích `#`, `//`. |
-| [`SpmfFormatHandler.java`](../src/huddtds/data/pipeline/SpmfFormatHandler.java) | **Concrete Handler** | Nhận diện và bóc tách định dạng SPMF / HUIM chuẩn (`item1 item2 : TU : u1 u2`). |
-| [`LegacyFormatHandler.java`](../src/huddtds/data/pipeline/LegacyFormatHandler.java) | **Concrete Handler** | Nhận diện và bóc tách định dạng Running Example cổ điển (`a:1 c:6 e:2`). |
-| [`TransactionParsingPipeline.java`](../src/huddtds/data/pipeline/TransactionParsingPipeline.java) | **Pipeline / Client** | Điều phối chuỗi liên kết các handler và cung cấp phương thức `parse(line, tid)` cho ứng dụng. |
-| [`TransactionParser.java`](../src/huddtds/data/TransactionParser.java) | **Integration Entry** | Điểm truy cập tĩnh truyền thống của hệ thống, nay ủy quyền toàn bộ cho `TransactionParsingPipeline`. |
+| [`TransactionLineHandler.java`](../src/huddtds/data/pipeline/TransactionLineHandler.java) | **Handler Interface** | Äá»‹nh nghÄ©a phÆ°Æ¡ng thá»©c `handle(line, tid)` vÃ  `setNext(handler)`. |
+| [`EmptyAndCommentFilterHandler.java`](../src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java) | **Concrete Handler** | Bá» qua dÃ²ng trá»‘ng, dÃ²ng khoáº£ng tráº¯ng hoáº·c dÃ²ng báº¯t Ä‘áº§u báº±ng dáº¥u chÃº thÃ­ch `#`, `//`. |
+| [`SpmfFormatHandler.java`](../src/huddtds/data/pipeline/SpmfFormatHandler.java) | **Concrete Handler** | Nháº­n diá»‡n vÃ  bÃ³c tÃ¡ch Ä‘á»‹nh dáº¡ng SPMF / HUIM chuáº©n (`item1 item2 : TU : u1 u2`). |
+| [`LegacyFormatHandler.java`](../src/huddtds/data/pipeline/LegacyFormatHandler.java) | **Concrete Handler** | Nháº­n diá»‡n vÃ  bÃ³c tÃ¡ch Ä‘á»‹nh dáº¡ng Running Example cá»• Ä‘iá»ƒn (`a:1 c:6 e:2`). |
+| [`TransactionParsingPipeline.java`](../src/huddtds/data/pipeline/TransactionParsingPipeline.java) | **Pipeline / Client** | Äiá»u phá»‘i chuá»—i liÃªn káº¿t cÃ¡c handler vÃ  cung cáº¥p phÆ°Æ¡ng thá»©c `parse(line, tid)` cho á»©ng dá»¥ng. |
+| [`TransactionParser.java`](../src/huddtds/data/TransactionParser.java) | **Integration Entry** | Äiá»ƒm truy cáº­p tÄ©nh truyá»n thá»‘ng cá»§a há»‡ thá»‘ng, nay á»§y quyá»n toÃ n bá»™ cho `TransactionParsingPipeline`. |
 
 ---
 
-## 3. Cấu trúc Trước & Sau khi áp dụng (Before vs After)
+## 3. Cáº¥u trÃºc TrÆ°á»›c & Sau khi Ã¡p dá»¥ng (Before vs After)
 
-### ❌ Trước khi áp dụng:
-Phương thức tĩnh `TransactionParser.parseLine` chứa chuỗi `if-else` cứng nhắc:
+### âŒ TrÆ°á»›c khi Ã¡p dá»¥ng:
+PhÆ°Æ¡ng thá»©c tÄ©nh `TransactionParser.parseLine` chá»©a chuá»—i `if-else` cá»©ng nháº¯c:
 ```java
 public static Transaction parseLine(String line, int tid) {
     if (trimmed.contains(":")) {
@@ -53,39 +53,49 @@ public static Transaction parseLine(String line, int tid) {
             return parseSpmfFormat(parts, tid);
         }
     }
-    return parseLegacyFormat(trimmed, tid); // Dễ phát sinh lỗi nếu gặp dòng chú thích!
+    return parseLegacyFormat(trimmed, tid); // Dá»… phÃ¡t sinh lá»—i náº¿u gáº·p dÃ²ng chÃº thÃ­ch!
 }
 ```
 
-### ✅ Sau khi áp dụng:
-Mỗi loại định dạng được đóng gói thành một lớp Handler riêng biệt và xâu chuỗi linh hoạt:
+### âœ… Sau khi Ã¡p dá»¥ng:
+Má»—i loáº¡i Ä‘á»‹nh dáº¡ng Ä‘Æ°á»£c Ä‘Ã³ng gÃ³i thÃ nh má»™t lá»›p Handler riÃªng biá»‡t vÃ  xÃ¢u chuá»—i linh hoáº¡t:
 ```java
-// Khởi tạo Pipeline theo thứ tự ưu tiên xử lý
+// Khá»Ÿi táº¡o Pipeline theo thá»© tá»± Æ°u tiÃªn xá»­ lÃ½
 TransactionParsingPipeline pipeline = new TransactionParsingPipeline(
     new EmptyAndCommentFilterHandler(),
     new SpmfFormatHandler(),
     new LegacyFormatHandler()
 );
 
-// Xử lý dòng thông qua chuỗi trách nhiệm
+// Xá»­ lÃ½ dÃ²ng thÃ´ng qua chuá»—i trÃ¡ch nhiá»‡m
 Transaction tx = pipeline.parse(line, tid);
 ```
 
 ---
 
-## 4. Mối quan hệ với các mẫu thiết kế khác
-1. **Hỗ trợ Facade Pattern (`SimulationFacade`)**:
-   Khi `SimulationFacade` mở transaction stream từ các tệp dataset hoặc từ ô nhập tay, dữ liệu đi thẳng qua `TransactionParser` (vốn được vận hành bởi Pipeline), giúp che giấu hoàn toàn sự phức tạp của việc phân tách định dạng.
-2. **Hỗ trợ Flyweight và Object Pool**:
-   Các handler như `SpmfFormatHandler` và `LegacyFormatHandler` tự động kết hợp với `ItemFactory` để nạp các đối tượng Flyweight và mượn `Transaction` từ `TransactionPool`, tạo nên một đường ống khép kín tối ưu cả CPU lẫn RAM.
+## 4. Má»‘i quan há»‡ vá»›i cÃ¡c máº«u thiáº¿t káº¿ khÃ¡c
+1. **Há»— trá»£ Facade Pattern (`SimulationFacade`)**:
+   Khi `SimulationFacade` má»Ÿ transaction stream tá»« cÃ¡c tá»‡p dataset hoáº·c tá»« Ã´ nháº­p tay, dá»¯ liá»‡u Ä‘i tháº³ng qua `TransactionParser` (vá»‘n Ä‘Æ°á»£c váº­n hÃ nh bá»Ÿi Pipeline), giÃºp che giáº¥u hoÃ n toÃ n sá»± phá»©c táº¡p cá»§a viá»‡c phÃ¢n tÃ¡ch Ä‘á»‹nh dáº¡ng.
+2. **Há»— trá»£ Flyweight vÃ  Object Pool**:
+   CÃ¡c handler nhÆ° `SpmfFormatHandler` vÃ  `LegacyFormatHandler` tá»± Ä‘á»™ng káº¿t há»£p vá»›i `ItemFactory` Ä‘á»ƒ náº¡p cÃ¡c Ä‘á»‘i tÆ°á»£ng Flyweight vÃ  mÆ°á»£n `Transaction` tá»« `TransactionPool`, táº¡o nÃªn má»™t Ä‘Æ°á»ng á»‘ng khÃ©p kÃ­n tá»‘i Æ°u cáº£ CPU láº«n RAM.
 
 ---
 
-## 5. Kiểm chứng thực nghiệm
+## 5. Kiá»ƒm chá»©ng thá»±c nghiá»‡m
 
-Bài kiểm thử tự động [`ParsingPipelineChainTest.java`](../test/ParsingPipelineChainTest.java) xác nhận:
-- Lọc thành công các dòng rỗng, dòng chứa tab/khoảng trắng, dòng chú thích `#` và `//`.
-- Bóc tách chính xác định dạng SPMF/HUIM gồm 3 thành phần (items, TU, utilities).
-- Bóc tách chính xác định dạng Running Example cổ điển theo cặp `item:quantity`.
-- Cơ chế chuyển tiếp trách nhiệm (`setNext()`) hoạt động chuẩn xác từ handler này sang handler kế tiếp khi dòng dữ liệu không thuộc phạm vi xử lý của handler hiện tại.
+BÃ i kiá»ƒm thá»­ tá»± Ä‘á»™ng [`ParsingPipelineChainTest.java`](../test/ParsingPipelineChainTest.java) xÃ¡c nháº­n:
+- Lá»c thÃ nh cÃ´ng cÃ¡c dÃ²ng rá»—ng, dÃ²ng chá»©a tab/khoáº£ng tráº¯ng, dÃ²ng chÃº thÃ­ch `#` vÃ  `//`.
+- BÃ³c tÃ¡ch chÃ­nh xÃ¡c Ä‘á»‹nh dáº¡ng SPMF/HUIM gá»“m 3 thÃ nh pháº§n (items, TU, utilities).
+- BÃ³c tÃ¡ch chÃ­nh xÃ¡c Ä‘á»‹nh dáº¡ng Running Example cá»• Ä‘iá»ƒn theo cáº·p `item:quantity`.
+- CÆ¡ cháº¿ chuyá»ƒn tiáº¿p trÃ¡ch nhiá»‡m (`setNext()`) hoáº¡t Ä‘á»™ng chuáº©n xÃ¡c tá»« handler nÃ y sang handler káº¿ tiáº¿p khi dÃ²ng dá»¯ liá»‡u khÃ´ng thuá»™c pháº¡m vi xá»­ lÃ½ cá»§a handler hiá»‡n táº¡i.
 
+
+## Chi tiết thay đổi code
+- **Files newly created**:
+  - src/huddtds/data/pipeline/TransactionLineHandler.java
+  - src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java
+  - src/huddtds/data/pipeline/SpmfFormatHandler.java
+  - src/huddtds/data/pipeline/LegacyFormatHandler.java
+  - src/huddtds/data/pipeline/TransactionParsingPipeline.java
+- **File modified**:
+  - src/huddtds/data/TransactionParser.java: replaced if-else logic with TransactionParsingPipeline, added static pipeline initializer, kept public parseLine signature unchanged.
