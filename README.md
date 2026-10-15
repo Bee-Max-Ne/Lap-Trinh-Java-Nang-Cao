@@ -396,7 +396,7 @@ thực tế; tên class hoặc dòng chữ `PASSED` trong log không tự xác n
 suite đã được chạy trong môi trường hiện tại. Hồ sơ kết quả baseline nằm tại
 [docs/baseline/](./docs/baseline/).
 
-### 2.8. Bốn mẫu thiết kế được áp dụng trực tiếp
+### 2.8. Tám mẫu thiết kế được áp dụng trực tiếp
 
 Trong source hiện tại, bốn pattern giải quyết bốn trách nhiệm khác nhau:
 
@@ -534,6 +534,47 @@ snapshot map utility và payload event theo loại; `FacadePatternTest` xác nh�
 cấu hình mô phỏng chuyển Strategy tùy chỉnh vào engine.
 
 #### 2.8.5. Kiểm chứng bốn mẫu thiết kế
+#### 2.8.5. Flyweight Pattern
+- **Mục đích**: Chia sẻ trạng thái nội tại (intrinsic state) của các Item để giảm bộ nhớ RAM khi có hàng triệu item trùng lặp.
+- **Files chính**:
+  - [src/huddtds/model/flyweight/ItemFlyweight.java](src/huddtds/model/flyweight/ItemFlyweight.java) – lớp immutable representations of item.
+  - [src/huddtds/model/flyweight/ItemFactory.java](src/huddtds/model/flyweight/ItemFactory.java) – factory quản lý ConcurrentHashMap để chia sẻ ItemFlyweight.
+- **Thay đổi**:
+  - src/huddtds/model/Element.java refactored để lưu trữ tham chiếu tới ItemFlyweight thay vì chuỗi String, đồng thời giữ nguyên các getter (getItem(), getQuantity(), getUtility%28%29) để đảm bảo backward compatibility.
+  - src/huddtds/model/Transaction.java cập nhật phương thức calculateTotalUtility để sử dụng externalUtility từ Flyweight khi externalUtilities map là null.
+
+#### 2.8.6. Object Pool Pattern
+- **Mục đích**: Tái sử dụng đối tượng Transaction để giảm áp lực Garbage Collection và tăng throughput.
+- **Files chính**:
+  - [src/huddtds/model/pool/TransactionPool.java](src/huddtds/model/pool/TransactionPool.java) – quản lý ArrayBlockingQueue<Transaction> với phương thức acquire/release.
+- **Thay đổi**:
+  - src/huddtds/model/Transaction.java: thêm phương thức reset() và reset(int newTid) để đặt lại trạng thái, đổi trường id từ final thành non-final và thêm setter setTid.
+  - src/huddtds/algorithm/HUDD_TDS.java: thêm trường TransactionPool transactionPool, khởi tạo trong constructors và giải phóng transaction khi trượt ra khỏi cửa sổ (memory.remove(0)).
+
+#### 2.8.7. Template Method Pattern
+- **Mục đích**: Chuẩn hóa bộ khung 6 bước của quá trình kiểm định trôi dạt (Drift Detection) để đảm bảo tính nhất quán và dễ dàng mở rộng.
+- **Files chính**:
+  - [src/huddtds/algorithm/drift/AbstractDriftDetector.java](src/huddtds/algorithm/drift/AbstractDriftDetector.java) – lớp abstract định nghĩa phương thức final unDetection(DriftInput input) và 6 phương thức abstract để các lớp cụ thể triển khai.
+- **Thay đổi**:
+  - src/huddtds/algorithm/GlobalDriftDetector.java thay đổi inheritance để extends AbstractDriftDetector đồng thời vẫn implement GlobalDriftStrategy.
+  - src/huddtds/algorithm/LocalDriftDetector.java thay đổi tương tự để extends AbstractDriftDetector và implement LocalDriftStrategy.
+  - Cả hai lớp này triển khai 6 phương thức abstract (hasEnoughData, computeStatistic, computeEpsilon, traceResult, buildDetectedResult, buildNoDriftResult) và Delegating tới template method qua unDetection.
+
+#### 2.8.8. Chain of Responsibility Pattern
+- **Mục đích**: Xây dựng pipeline bóc tách dòng giao dịch đa định dạng mà không cần chuỗi if-else tĩnh, tuân thủ nguyên tắc OCP.
+- **Files chính**:
+  - [src/huddtds/data/pipeline/TransactionLineHandler.java](src/huddtds/data/pipeline/TransactionLineHandler.java) – interface với phương thức setNext và handle.
+  - [src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java](src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java) – lọc bỏ dòng trống và dòng bắt đầu bằng # hoặc //.
+  - [src/huddtds/data/pipeline/SpmfFormatHandler.java](src/huddtds/data/pipeline/SpmfFormatHandler.java) – xử lý định dạng SPMF/HUIM (item1 item2 ... : TU : u1 u2 ...).
+  - [src/huddtds/data/pipeline/LegacyFormatHandler.java](src/huddtds/data/pipeline/LegacyFormatHandler.java) – xử lý định dạng Running Example (item1:quantity1 item2:quantity2 ...).
+  - [src/huddtds/data/pipeline/TransactionParsingPipeline.java](src/huddtds/data/pipeline/TransactionParsingPipeline.java) – quản lý chuỗi handlers và cung cấp phương thức parse(String line, int tid).
+- **Thay đổi**:
+  - src/huddtds/data/TransactionParser.java được refactor để sử dụng TransactionParsingPipeline thay vì if-else tĩnh, đồng thời giữ nghiệm public API parseLine(String line, int tid).
+
+
+
+
+#### 2.8.9. Kiểm chứng tám mẫu thiết kế
 
 - `StrategyInjectionTest` kiểm tra engine nhận strategy qua constructor/builder, gọi
   đúng implementation và giữ hành vi API chuỗi tương thích.
@@ -542,21 +583,22 @@ cấu hình mô phỏng chuyển Strategy tùy chỉnh vào engine.
 - `FacadePatternTest` kiểm tra dataset API, tạo service, Strategy injection,
   event checkpoint và CSV UTF-8/escaping qua Facade.
 - `BuilderPatternTest` kiểm tra khởi tạo Engine và Event qua Fluent API cùng validation tham số; `FacadePatternTest` kiểm tra cấu hình mô phỏng.
-- `DatasetServiceTest` kiểm tra application service cho thao tác dataset.
+- `DatasetServiceTest` kiểm tra application service cho thaoácataset.
 
-Các API Strategy/Observer/Facade/Builder và test tương ứng được mô tả ở đây theo source
-hiện tại. Việc có các pattern này không đồng nghĩa toàn hệ thống đã dùng kiến trúc
+Các API Strategy/Observer/Facade/Builder, Flyweight, Object Pool, Template Method, Chain of Responsibility và test tương ứng được mô tả ở đây theo source
+hiện tại. Việc có tám pattern này không đồng nghĩa toàn hệ thống đã dùng kiến trúc
 plug-in/module: `DatasetService` vẫn gọi trực tiếp data implementations;
 `TransactionParser` và `UtilityMetrics` còn là utility API; chưa có
 Repository/Factory cho nhiều nguồn dữ liệu. `HUDD_TDS` là bộ điều phối thuật
 toán, còn `SimulationFacade` là Facade của tầng ứng dụng.
 
-GUI gọi `SimulationFacade` cho các thao tác ứng dụng chính; nó vẫn tham chiếu
+GUI gọi `SimulationFacade` cho các thaoáticos ứng dụng chính; nó vẫn tham chiếu
 kiểu `SimulationService`, event và model để đăng ký listener/trình bày dữ liệu.
 Domain không phụ thuộc Swing hay filesystem; math vẫn tham chiếu model trong
 phép tính D_mo/vector.
 
 ---
+
 
 ## 3. Định dạng dữ liệu
 
@@ -1057,16 +1099,20 @@ vào hồ sơ dự án.
 
 ## 6. Tổng Quan Các Mẫu Thiết Kế Đã Triển Khai (Design Patterns)
 
-Hệ thống **HUDD-TDS** áp dụng 4 mẫu thiết kế chính nhằm đảm bảo tính linh hoạt, dễ mở rộng, kiểm thử độc lập và tuân thủ các nguyên lý SOLID:
+Hệ thống **HUDD-TDS** áp dụng 8 mẫu thiết kế chính nhằm đảm bảo tính linh hoạt, dễ mở rộng, kiểm thử độc lập và tuân thủ các nguyên lý SOLID:
 
-### 6.1. Bảng Tóm Tắt 4 Mẫu Thiết Kế
+### 6.1. Bảng Tóm Tắt 8 Mẫu Thiết Kế
 
 | Mẫu Thiết Kế    | Thành phần triển khai chính                                      | Mục đích & Giải pháp                                                                                                                                                                                    | Kiểm thử xác minh                |
 | ------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
-| **Strategy** | `HUIItemsetMiner`, `GlobalDriftStrategy`, `LocalDriftStrategy` | Cho phép thay đổi thuật toán mining (TWU/HUI) và thuật toán phát hiện drift (DIS_HS, local overlap) độc lập với Engine điều phối`HUDD_TDS`.                                               | `test.StrategyInjectionTest`      |
+| **Strategy** | `HUIItemsetMiner`, `GlobalDriftStrategy`, `LocalDriftStrategy` | Cho phép thay đổi thuật toán mining (TWU/HUI) và thuật toán phát hiện drift (DIS_HS, local overlap) độc lập với Engine điều phối`HUDD_TDS`. | `test.StrategyInjectionTest` |
 | **Observer** | `SimulationService`, `SimulationListener`, `SimulationEvent`   | Tách rời service khỏi Swing; subscription có vòng đời rõ ràng, lỗi observer được chuyển tiếp sau khi dispatch tới các listener còn lại. GUI cập nhật EDT qua `SwingWorker`. | `test.SimulationServiceEventTest` |
 | **Facade**   | `SimulationFacade`, `SimulationConfiguration` | Điểm truy cập cho dataset, tạo service có Strategy injection và xuất CSV bảng HUI/drift. | `test.FacadePatternTest` |
 | **Builder**  | `SimulationConfiguration.Builder`, `HUDD_TDS.Builder`, `SimulationEvent.Builder` | Gom cấu hình mô phỏng và event; kiểm tra tham số số học, TID và payload cần thiết theo loại event. | `test.BuilderPatternTest`, `test.FacadePatternTest` |
+| **Flyweight** | `ItemFlyweight`, `ItemFactory` | Chia sẻ trạng thái nội tại (intrinsic state) của các Item để giảm bộ nhớ RAM khi có hàng triệu item trùng lặp. | `test.FlyweightAndPoolTest` |
+| **Object Pool** | `TransactionPool` | Tái sử dụng đối tượng Transaction để giảm áp lực Garbage Collection và tăng throughput. | `test.FlyweightAndPoolTest` |
+| **Template Method** | `AbstractDriftDetector` | Chuẩn hóa bộ khung 6 bước của quá trình kiểm định trôi dạt (Drift Detection) để đảm bảo tính nhất quán và dễ dàng mở rộng. | `test.GlobalDriftDetectorStateTest`, `test.LocalDriftDetectorStateTest` |
+| **Chain of Responsibility** | `TransactionLineHandler`, `EmptyAndCommentFilterHandler`, `SpmfFormatHandler`, `LegacyFormatHandler`, `TransactionParsingPipeline` | Xây dựng pipeline bóc tách dòng giao dịch đa định dạng mà không cần chuỗi if-else tĩnh, tuân thủ nguyên tắc OCP. | `test.DataLayerTest` |
 
 ### 6.2. Kết Quả Kiểm Thử & Xác Minh Chạy Pattern
 
@@ -1087,65 +1133,20 @@ Các file sau đã được gộp vào một tệp duyệt docs/tomtat.md:
 Bạn có thể xem tệp tổng hợp tại: [docs/tomtat.md](./docs/tomtat.md)
 
 
-## 7. Các mẫu thiết kế mới đã triển khai
 
-Để tối ưu bộ nhớ RAM, giảm thời gian xử lý và chuẩn hóa luồng hành vi, dự án đã bổ sung thêm 4 mẫu thiết kế sau:
-
-### 7.1. Flyweight Pattern
-- **Mục đích**: Chia sẻ trạng thái nội tại (intrinsic state) của các Item để giảm bộ nhớ RAM khi có hàng triệu item trùng lặp.
-- **Files chính**:
-  - [src/huddtds/model/flyweight/ItemFlyweight.java](src/huddtds/model/flyweight/ItemFlyweight.java) – lớp immutable representación của item.
-  - [src/huddtds/model/flyweight/ItemFactory.java](src/huddtds/model/flyweight/ItemFactory.java) – factory quản lý ConcurrentHashMap để chia sẻ ItemFlyweight.
-- **Thay đổi**: 
-  - src/huddtds/model/Element.java refactored để lưu trữ tham chiếu tới ItemFlyweight thay vì chuỗi String, đồng thời giữ nguyên các getter (getItem(), getQuantity(), getUtility%28%29) để đảm bảo backward compatibility.
-  - src/huddtds/model/Transaction.java cập nhật phương thức calculateTotalUtility để sử dụng externalUtility từ Flyweight khi externalUtilities map là null.
-
-### 7.2. Object Pool Pattern
-- **Mục đích**: Tái sử dụng đối tượng Transaction để giảm áp lực Garbage Collection và tăng throughput.
-- **Files chính**:
-  - [src/huddtds/model/pool/TransactionPool.java](src/huddtds/model/pool/TransactionPool.java) – quản lý ArrayBlockingQueue<Transaction> với phương thức acquire/release.
-- **Thay đổi**:
-  - src/huddtds/model/Transaction.java: thêm phương thức eset() và eset(int newTid) để đặt lại trạng thái, đổi trường 	id từ inal thành non-final và thêm setter setTid.
-  - src/huddtds/algorithm/HUDD_TDS.java: thêm trường TransactionPool transactionPool, khởi tạo trong constructors và giải phóng transaction khi trượt ra khỏi cửa sổ (memory.remove(0)).
-
-### 7.3. Template Method Pattern
-- **Mục đích**: Chuẩn hóa bộ khung 6 bước của quá trình kiểm định trôi dạt (Drift Detection) để đảm bảo tính nhất quán và dễ dàng mở rộng.
-- **Files chính**:
-  - [src/huddtds/algorithm/drift/AbstractDriftDetector.java](src/huddtds/algorithm/drift/AbstractDriftDetector.java) – lớp abstract định nghĩa phương thức final unDetection(DriftInput input) và 6 phương thức abstract để các lớp cụ thể triển khai.
-- **Thay đổi**:
-  - src/huddtds/algorithm/GlobalDriftDetector.java thay đổi inheritance để extends AbstractDriftDetector đồng thời vẫn implement GlobalDriftStrategy.
-  - src/huddtds/algorithm/LocalDriftDetector.java thay đổi tương tự để extends AbstractDriftDetector và implement LocalDriftStrategy.
-  - Cả hai lớp này triển khai 6 phương thức abstract (hasEnoughData, computeStatistic, computeEpsilon, traceResult, buildDetectedResult, buildNoDriftResult) vàDelegating tới template method qua unDetection.
-
-### 7.4. Chain of Responsibility Pattern
-- **Mục đích**: Xây dựng pipeline bóc tách dòng giao dịch đa định dạng mà không cần chuỗi if-else tĩnh, tuân thủ nguyên tắc OCP.
-- **Files chính**:
-  - [src/huddtds/data/pipeline/TransactionLineHandler.java](src/huddtds/data/pipeline/TransactionLineHandler.java) – interface với phương thức setNext và handle.
-  - [src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java](src/huddtds/data/pipeline/EmptyAndCommentFilterHandler.java) – lọc bỏ dòng trống và dòng bắt đầu bằng # hoặc //.
-  - [src/huddtds/data/pipeline/SpmfFormatHandler.java](src/huddtds/data/pipeline/SpmfFormatHandler.java) – xử lý định dạng SPMF/HUIM (item1 item2 ... : TU : u1 u2 ...).
-  - [src/huddtds/data/pipeline/LegacyFormatHandler.java](src/huddtds/data/pipeline/LegacyFormatHandler.java) – xử lý định dạng Running Example (item1:quantity1 item2:quantity2 ...).
-  - [src/huddtds/data/pipeline/TransactionParsingPipeline.java](src/huddtds/data/pipeline/TransactionParsingPipeline.java) – quản lý chuỗi handlers và cung cấp phương thức parse(String line, int tid).
-- **Thay đổi**:
-  - src/huddtds/data/TransactionParser.java được refactor để sử dụng TransactionParsingPipeline thay vì if-else tĩnh, đồng thời giữ nguyên public API parseLine(String line, int tid).
-
-### 7.5. Tài liệu tham khảo
-- Các file giải thích chi tiết từng mẫu thiết kế nằm trong thư mục docs/:
-  - [Flyweight Pattern Explanation](./docs/Flyweight_Pattern_Explanation.md)
-  - [Object Pool Pattern Explanation](./docs/Object_Pool_Pattern_Explanation.md)
-  - [Template Method Pattern Explanation](./docs/Template_Method_Pattern_Explanation.md)
-  - [Chain of Responsibility Pattern Explanation](./docs/Chain_of_Responsibility_Pattern_Explanation.md)
-
-
-## 8. So sánh trước và sau khi áp dụng từng mẫu thiết kế
+## 7. So sánh trước và sau khi áp dụng từng mẫu thiết kế
 
 | Mẫu thiết kế | Trước khi áp dụng | Sau khi áp dụng | Lợi ích chính |
 |--------------|-------------------|-----------------|---------------|
-| **Flyweight** | Mỗi transaction tạo ra phần tử Element với chuỗi String item độc lập → hàng triệu đối tượng String/Element trong RAM (~800MB‑1.5GB). | Item được lưu trữ dưới dạng ItemFlyweight immutable và được chia sẻ qua ItemFactory → mỗi item duy nhất chỉ có một bản tin trong RAM (~250MB‑400MB). | Giảm 60‑75 % bộ nhớ RAM dùng để lưu trữ items. |
-| **Object Pool** | Mỗi transaction mới được tạo bằng 
-ew Transaction(); khi trượt ra khỏi cửa sổ (memory.remove(0)) trở thành rác → GC giovani liên tục, gây gián đoạn (stop‑the‑world). | TransactionPool giữ sẵn một nhóm Transaction rỗng; khi cần mới lấy từ pool (cquire), sau khi dùng gọi eset() rồi trả về pool (elease). | Giảm >80 % số đợt Young GC; tăng throughput giao dịch/giây từ 30‑45k lên 65‑90k+. |
-| **Template Method** | Mỗi bộ detector (GlobalDriftDetector, LocalDriftDetector) tự viết logic kiểm tra dữ liệu, tính thống kê, tính epsilon, so sánh, ghi trace, tạo kết quả → nhiều mã trùng lặp, dễ thiếu bước khi thêm detector mới. | Bộ học abstract AbstractDriftDetector định nghĩa phương thức final unDetection(DriftInput) gồm 6 bước cố định; các lớp cụ thể chỉ cần triển khai 6 phương thức abstract. | Loại bỏ 100 % mã nguồn trùng lặp giữa các detector; đảm bảo tính nhất quán và dễ dàng mở rộng. |
-| **Chain of Responsibility** | TransactionParser.parseLine dùng chuỗi if-else tĩnh để kiểm tra định dạng (SPMF/HUIM, Legacy); mỗi lần thêm định dạng mới cần sửa đổi file này → vi phạm OCP. | Pipeline gồm các Handler (EmptyAndCommentFilterHandler, SpmfFormatHandler, LegacyFormatHandler) được liên kết qua setNext; mỗi Handler chỉ xử lý một định dạng và chuyển tiếp nếu không thể. Thêm định dạng mới chỉ cần viết Handler mới và thêm vào pipeline. | Tách rời hoàn toàn các thuật toán bóc tách chuỗi dữ liệu; tuân thủ nguyên tắc Open/Closed; tăng tốc độ parse bằng việc không split chuỗi không cần thiết. |
+| **Strategy** | Engine phụ thuộc cứng vào các thuật toán cụ thể (HUIDiscovery, GlobalDriftDetector, LocalDriftDetector); thay đổi thuật toán yêu cầu sửa mã nguồn engine. | Engine dựa trên các interface (HUIItemsetMiner, GlobalDriftStrategy, LocalDriftStrategy); thuật toán có thể được tiêm qua constructor/builder mà không thay đổi engine. | Cho phép thay đổi thuật toán tuân thủ nguyên tắc Open/Closed; giảm ràng buộc giữa engine và các thuật toán; dễ dàng kiểm thử bằng mock. |
+| **Observer** | GUI trực tiếp gọi các phương thức của engine hoặc engine tham chiếu đến GUI, dẫn đến sự phụ thuộc chặt chẽ. | SimulationService phát eventos SimulationEvent; GUI đăng ký listener và nhận eventos qua SwingWorker để cập nhật EDT. | Tách rời logic ứng dụng khỏi giao diện; cho phép nhiều listener; quản lý eventi một cách tập trung. |
+| **Facade** | GUI phải tương tác trực tiếp với nhiều services (DatasetService, SimulationService, etc.) để thực hiện các thao tác như tải dataset, chạy mô phỏng, xuất CSV. | SimulationFacade cung cấp một interface thống nhất để tìm kiếm/validate dataset, tạo và chạy SimulationService, xuất CSV bảng HUI/drift. | Giảm sự phức tạp của mã nguồn GUI; giảm sự phụ thuộc trực tiếp vào các service bên trong; tăng tính dễ sử dụng. |
+| **Builder** | Các đối tượng cấu hình (SimulationConfiguration, HUDD_TDS, SimulationEvent) cần nhiều tham số trong constructor, dẫn đến khó đọc và khả năng tr đổi tham số. | Các lớp Builder cung cấp API fluent để thiết lập tham số từng bước một, kèm theo validation khi cần. | Cải thiện độ đọc; đảm bảo đối tượng được tạo hợp lệ; cho phép giá trị mặc định và cấu hình linh hoạt. |
+| **Flyweight** | Mỗi phần tử Element lưu trữ tên item dưới dạng chuỗi String độc lập, gây trùng lặp bộ nhớ khi có hàng triệu mục trùng lặp. | ItemFlyweight là lớp immutable chứa tên item; ItemFactory chia sẻ các instance qua ConcurrentHashMap; Element lưu trữ tham chiếu đến ItemFlyweight. | Giảm bộ nhớ RAM dùng để lưu trữ items từ 60‑75 %, đặc biệt hiệu quả khi có nhiều mục lặp lại. |
+| **Object Pool** | Mỗi Transaction mới được tạo bằng new Transaction(); sau khi dùng và bị loại ra khỏi cửa sổ, trở thành rác gây áp lực GC giovani liên tục. | TransactionPool giữ sẵn một nhóm Transaction rỗng; khi cần, lấy từ pool (acquire), sau khi dùng gọi reset() rồi trả về pool (release). | Giảm >80 % số đợt Young GC; tăng throughput giao dịch/giây từ 30‑45k lên 65‑90k+; giảm gián đoạn do GC. |
+| **Template Method** | Mỗi bộ detector (GlobalDriftDetector, LocalDriftDetector) tự viết lặp lại các bước kiểm tra dữ liệu, tính thống kê, tính epsilon, so sánh, ghi trace, tạo kết quả → mã nguồn trùng lặp, dễ bỏ sót bước khi thêm detector mới. | AbstractDriftDetector xác định phương thức final unDetection(DriftInput) gồm 6 bước cố định; các lớp cụ thể chỉ cần triển khai 6 phương thức abstract. | Loại bỏ 100 % mã nguồn trùng lặp giữa các detector; đảm bảo tính nhất quán trong quy trình kiểm drift; dễ dàng mở rộng với detector mới. |
+| **Chain of Responsibility** | TransactionParser.parseLine sử dụng chuỗi if-else tĩnh để kiểm định định dạng (SPMF/HUIM, Legacy); mỗi lần thêm định dạng mới cần sửa đổi file này → vi phạm OCP. | Pipeline bao gồm các Handler (EmptyAndCommentFilterHandler, SpmfFormatHandler, LegacyFormatHandler) được liên kết qua setNext; mỗi Handler chỉ xử lý một định dạng và chuyển tiếp nếu không thể. Thêm định dạng mới chỉ cần viết Handler mới và thêm vào pipeline. | Tách rời hoàn toàn các thuật toán bóc tách chuỗi dữ liệu; tuân thủ nguyên tắc Open/Closed; tăng tốc độ parse bằng việc không tách chuỗi không cần thiết. |
 
 --- 
 
-*Đây là bảng so sánh trước và sau khi áp dụng 4 mẫu thiết kế mới. Các cải thiện về hiệu năng đã được chứng minh qua việc chạy ứng dụng GUI và các unit test.*
+*Đây là bảng so sánh trước và sau khi áp dụng tám mẫu thiết kế. Các cải thiện về hiệu năng đã được chứng minh qua việc chạy ứng dụng GUI và các unit test.*
