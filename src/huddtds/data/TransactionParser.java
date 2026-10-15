@@ -1,5 +1,10 @@
 package huddtds.data;
 
+import huddtds.data.pipeline.EmptyAndCommentFilterHandler;
+import huddtds.data.pipeline.LegacyFormatHandler;
+import huddtds.data.pipeline.SpmfFormatHandler;
+import huddtds.data.pipeline.TransactionLineHandler;
+import huddtds.data.pipeline.TransactionParsingPipeline;
 import huddtds.model.Transaction;
 
 /**
@@ -12,11 +17,36 @@ import huddtds.model.Transaction;
  * 2. Định dạng Running Example cổ điển:
  *    item1:quantity1 item2:quantity2 ...
  *    Ví dụ: a:2 c:6 e:2 g:5
+ * 
+ * Đã được tích hợp Chain of Responsibility pattern thông qua TransactionParsingPipeline
+ * đồng thời giữ nguyên 100% các phương thức parse cổ điển nội bộ để bảo toàn cấu trúc mã nguồn.
  */
 public class TransactionParser {
 
     /**
+     * Pipeline xử lý chuỗi trách nhiệm để phân tích dòng giao dịch.
+     * Các bộ xử lý được sắp xếp theo thứ tự:
+     *   1. EmptyAndCommentFilterHandler - loại bỏ dòng trống và dòng chú thích
+     *   2. SpmfFormatHandler - xử lý định dạng SPMF/HUIM
+     *   3. LegacyFormatHandler - xử lý định dạng cũ (item:quantity)
+     */
+    private static final TransactionParsingPipeline PIPELINE;
+
+    static {
+        EmptyAndCommentFilterHandler filterHandler = new EmptyAndCommentFilterHandler();
+        SpmfFormatHandler spmfHandler = new SpmfFormatHandler();
+        LegacyFormatHandler legacyHandler = new LegacyFormatHandler();
+        
+        // Xây dựng chuỗi: filter -> spmf -> legacy
+        filterHandler.setNext(spmfHandler);
+        spmfHandler.setNext(legacyHandler);
+        
+        PIPELINE = new TransactionParsingPipeline(filterHandler);
+    }
+
+    /**
      * Phân tích một dòng văn bản thành đối tượng Transaction.
+     * Ưu tiên xử lý qua Chain of Responsibility Pipeline, nếu không khớp sẽ chuyển sang phân tích fallback cổ điển.
      *
      * @param line chuỗi dòng dữ liệu
      * @param tid mã định danh giao dịch
@@ -26,6 +56,11 @@ public class TransactionParser {
     public static Transaction parseLine(String line, int tid) {
         if (line == null || line.trim().isEmpty()) {
             throw new IllegalArgumentException("Dòng giao dịch rỗng tại TID=" + tid);
+        }
+
+        Transaction tx = PIPELINE.parse(line, tid);
+        if (tx != null) {
+            return tx;
         }
 
         String trimmed = line.trim();
@@ -42,7 +77,10 @@ public class TransactionParser {
         return parseLegacyFormat(trimmed, tid);
     }
 
-    private static Transaction parseSpmfFormat(String[] parts, int tid) {
+    /**
+     * Phương thức phân tích định dạng SPMF cổ điển được giữ nguyên vẹn.
+     */
+    public static Transaction parseSpmfFormat(String[] parts, int tid) {
         String itemsPart = parts[0].trim();
         String tuPart = parts[1].trim();
         String utilsPart = parts[2].trim();
@@ -86,7 +124,10 @@ public class TransactionParser {
         return tx;
     }
 
-    private static Transaction parseLegacyFormat(String line, int tid) {
+    /**
+     * Phương thức phân tích định dạng Running Example cổ điển được giữ nguyên vẹn.
+     */
+    public static Transaction parseLegacyFormat(String line, int tid) {
         Transaction tx = new Transaction(tid);
         String[] tokens = line.split("\\s+");
 

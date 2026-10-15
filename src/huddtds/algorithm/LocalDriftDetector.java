@@ -1,5 +1,6 @@
-package huddtds.algorithm;
+﻿package huddtds.algorithm;
 
+import huddtds.algorithm.drift.AbstractDriftDetector;
 import huddtds.algorithm.drift.LocalDriftStrategy;
 import huddtds.math.UtilityMetrics;
 import huddtds.model.Checkpoint;
@@ -12,7 +13,34 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class LocalDriftDetector implements LocalDriftStrategy {
+/**
+ * Local Utility Drift Detector.
+ * 
+ * Based on Algorithm 4 and Equation (9)
+ * of HUDD-TDS.
+ */
+public class LocalDriftDetector extends AbstractDriftDetector implements LocalDriftStrategy {
+
+    /**
+     * Äá»‹nh nghÄ©a Ä‘áº§u vÃ o cá»¥ thá»ƒ cho LocalDriftDetector.
+     */
+    public static class LocalDriftInput implements AbstractDriftDetector.DriftInput {
+        private final Checkpoint previous;
+        private final Checkpoint current;
+
+        public LocalDriftInput(Checkpoint previous, Checkpoint current) {
+            this.previous = previous;
+            this.current = current;
+        }
+
+        public Checkpoint getPrevious() {
+            return previous;
+        }
+
+        public Checkpoint getCurrent() {
+            return current;
+        }
+    }
 
     private final double alpha;
     private final int sampleSize;
@@ -104,6 +132,68 @@ public class LocalDriftDetector implements LocalDriftStrategy {
         return DriftResult.noDrift(previous.getTid(), current.getTid());
     }
 
+    // =========================================================================
+    // Implementing the abstract methods from AbstractDriftDetector (Template Method)
+    // =========================================================================
+
+    @Override
+    protected boolean hasEnoughData(AbstractDriftDetector.DriftInput input) {
+        if (!(input instanceof LocalDriftInput lInput)) return false;
+        return lInput.getPrevious() != null && lInput.getCurrent() != null
+                && !lInput.getPrevious().getHuis().isEmpty() && !lInput.getCurrent().getHuis().isEmpty();
+    }
+
+    @Override
+    protected double computeStatistic(AbstractDriftDetector.DriftInput input) {
+        return 0.0;
+    }
+
+    @Override
+    protected double computeEpsilon(AbstractDriftDetector.DriftInput input) {
+        return Double.POSITIVE_INFINITY;
+    }
+
+    @Override
+    protected void traceResult(AbstractDriftDetector.DriftInput input, double statistic, double epsilon, boolean detected) {
+        LocalDriftInput lInput = (LocalDriftInput) input;
+        String msg = String.format(
+                "[LOCAL CHECK] TID=%d->%d, statistic=%.6f, epsilon=%.6f, detected=%b",
+                lInput.getPrevious().getTid(),
+                lInput.getCurrent().getTid(),
+                statistic,
+                epsilon,
+                detected);
+        if (traceListener != null) {
+            traceListener.accept(msg);
+        } else {
+            System.out.println(msg);
+        }
+    }
+
+    @Override
+    protected DriftResult buildDetectedResult(AbstractDriftDetector.DriftInput input, double statistic, double epsilon) {
+        LocalDriftInput lInput = (LocalDriftInput) input;
+        String itemsetKey = "placeholder";
+        if (!lInput.getPrevious().getHuis().isEmpty()) {
+            itemsetKey = lInput.getPrevious().getHuis().get(0).getItems().toString();
+        }
+        return DriftResult.localDrift(
+                lInput.getPrevious().getTid(),
+                lInput.getCurrent().getTid(),
+                Math.abs(statistic),
+                epsilon,
+                itemsetKey);
+    }
+
+    @Override
+    protected DriftResult buildNoDriftResult(AbstractDriftDetector.DriftInput input) {
+        LocalDriftInput lInput = (LocalDriftInput) input;
+        return DriftResult.noDrift(lInput.getPrevious().getTid(), lInput.getCurrent().getTid());
+    }
+
+    // The following methods are kept for compatibility with the original LocalDriftDetector.
+    // We leave them unchanged.
+
     private Set<String> collectItemsets(
             Checkpoint previous,
             Checkpoint current) {
@@ -193,5 +283,16 @@ public class LocalDriftDetector implements LocalDriftStrategy {
                 currentHui.getTotalUtility()
                         - previousHui.getTotalUtility())
                 > 0.0;
+    }
+
+    @Override
+    public String detect(List<Checkpoint> checkpoints) {
+        if (checkpoints == null || checkpoints.size() < 2) {
+            return null;
+        }
+        Checkpoint previous = checkpoints.get(checkpoints.size() - 2);
+        Checkpoint current = checkpoints.get(checkpoints.size() - 1);
+        DriftResult result = detect(previous, current);
+        return result.isDetected() ? result.getAffectedItemsets().isEmpty() ? null : result.getAffectedItemsets().iterator().next() : null;
     }
 }
