@@ -1,4 +1,4 @@
-package huddtds.algorithm;
+﻿package huddtds.algorithm;
 
 import huddtds.algorithm.drift.AbstractDriftDetector;
 import huddtds.algorithm.drift.LocalDriftStrategy;
@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 public class LocalDriftDetector extends AbstractDriftDetector implements LocalDriftStrategy {
 
     /**
-     * Định nghĩa đầu vào cụ thể cho LocalDriftDetector.
+     * Äá»‹nh nghÄ©a Ä‘áº§u vÃ o cá»¥ thá»ƒ cho LocalDriftDetector.
      */
     public static class LocalDriftInput implements AbstractDriftDetector.DriftInput {
         private final Checkpoint previous;
@@ -283,5 +283,16 @@ public class LocalDriftDetector extends AbstractDriftDetector implements LocalDr
                 currentHui.getTotalUtility()
                         - previousHui.getTotalUtility())
                 > 0.0;
+    }
+
+    @Override
+    public String detect(List<Checkpoint> checkpoints) {
+        if (checkpoints == null || checkpoints.size() < 2) {
+            return null;
+        }
+        Checkpoint previous = checkpoints.get(checkpoints.size() - 2);
+        Checkpoint current = checkpoints.get(checkpoints.size() - 1);
+        DriftResult result = detect(previous, current);
+        return result.isDetected() ? result.getAffectedItemsets().isEmpty() ? null : result.getAffectedItemsets().iterator().next() : null;
     }
 }

@@ -1,4 +1,4 @@
-package huddtds.algorithm;
+﻿package huddtds.algorithm;
 
 import huddtds.algorithm.drift.AbstractDriftDetector;
 import huddtds.algorithm.drift.GlobalDriftStrategy;
@@ -33,7 +33,7 @@ import java.util.function.Consumer;
 public class GlobalDriftDetector extends AbstractDriftDetector implements GlobalDriftStrategy {
 
     /**
-     * Định nghĩa đầu vào cụ thể cho GlobalDriftDetector.
+     * Äá»‹nh nghÄ©a Ä‘áº§u vÃ o cá»¥ thá»ƒ cho GlobalDriftDetector.
      */
     public static class GlobalDriftInput implements AbstractDriftDetector.DriftInput {
         private final double observation;
@@ -231,9 +231,9 @@ public class GlobalDriftDetector extends AbstractDriftDetector implements Global
                         <= v - epsilonV;
 
         if (increasing) {
-            lastDirection = "TĂNG";
+            lastDirection = "TÄ‚NG";
         } else if (decreasing) {
-            lastDirection = "GIẢM";
+            lastDirection = "GIáº¢M";
         }
 
         /*
@@ -288,9 +288,9 @@ public class GlobalDriftDetector extends AbstractDriftDetector implements Global
             if (lastDirection == null) {
 
                 if (testU > testV) {
-                    lastDirection = "TĂNG";
+                    lastDirection = "TÄ‚NG";
                 } else if (testU < testV) {
-                    lastDirection = "GIẢM";
+                    lastDirection = "GIáº¢M";
                 }
             }
 
@@ -384,7 +384,7 @@ public class GlobalDriftDetector extends AbstractDriftDetector implements Global
                 gInput.getNewCheckpointTid(),
                 Math.abs(statistic),
                 epsilon,
-                statistic >= 0 ? "TĂNG" : "GIẢM");
+                statistic >= 0 ? "TÄ‚NG" : "GIáº¢M");
     }
 
     @Override
@@ -432,4 +432,10 @@ public class GlobalDriftDetector extends AbstractDriftDetector implements Global
         cutPoint = 0;
         lastDirection = null;
     }
+
+    @Override
+    public String updateAndCheck(double observation) {
+        DriftResult result = updateAndCheck(observation, -1, -1);
+        return result.isDetected() ? result.getDirection() : null;
+    
 }
