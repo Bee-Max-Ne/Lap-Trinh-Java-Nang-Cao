@@ -1,5 +1,6 @@
-package huddtds.demo;
+package test;
 
+import huddtds.demo.ChartPanel;
 import huddtds.model.Checkpoint;
 import huddtds.model.DriftResult;
 

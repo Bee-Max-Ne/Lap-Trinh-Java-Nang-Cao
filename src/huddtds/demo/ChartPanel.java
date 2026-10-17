@@ -19,7 +19,7 @@ import javax.swing.JPanel;
  */
 public class ChartPanel extends JPanel {
     private static final long serialVersionUID = 1L;
-    static final int MAX_RETAINED_CHECKPOINTS = 1000;
+    public static final int MAX_RETAINED_CHECKPOINTS = 1000;
 
     public enum MetricMode {
         GLOBAL_DISTANCE("Khoảng cách toàn cục (DISHS)"),
@@ -142,7 +142,7 @@ public class ChartPanel extends JPanel {
         }
     }
 
-    int getRetainedCheckpointCount() {
+    public int getRetainedCheckpointCount() {
         return checkpoints.size();
     }
 
@@ -421,30 +421,30 @@ public class ChartPanel extends JPanel {
         g2.drawString("Trôi dạt toàn cục", x + 76, y + 9);
     }
 
-    static List<Checkpoint> sortCheckpointsByTid(List<Checkpoint> data) {
+    public static List<Checkpoint> sortCheckpointsByTid(List<Checkpoint> data) {
         List<Checkpoint> sorted = new ArrayList<>(data);
         sorted.sort(Comparator.comparingInt(Checkpoint::getTid));
         return sorted;
     }
 
-    static boolean isGlobalDrift(DriftResult result) {
+    public static boolean isGlobalDrift(DriftResult result) {
         return result != null
                 && result.isDetected()
                 && result.getType() == DriftResult.DriftType.GLOBAL_DRIFT;
     }
 
-    static double transformMetric(double value) {
+    public static double transformMetric(double value) {
         return Math.copySign(Math.log1p(Math.abs(value)), value);
     }
 
-    static double inverseTransformMetric(double value) {
+    public static double inverseTransformMetric(double value) {
         return Math.copySign(Math.expm1(Math.abs(value)), value);
     }
 
-    static int xForTid(int tid,
-                       List<Checkpoint> sortedCheckpoints,
-                       int paddingLeft,
-                       int plotWidth) {
+    public static int xForTid(int tid,
+                              List<Checkpoint> sortedCheckpoints,
+                              int paddingLeft,
+                              int plotWidth) {
         int firstTid = sortedCheckpoints.get(0).getTid();
         int lastTid = sortedCheckpoints.get(sortedCheckpoints.size() - 1).getTid();
         if (firstTid == lastTid) {

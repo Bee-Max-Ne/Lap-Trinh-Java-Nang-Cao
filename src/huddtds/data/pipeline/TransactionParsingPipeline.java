@@ -19,7 +19,6 @@ public class TransactionParsingPipeline {
      * 
      * @param handlers các handler theo thứ tự xử lý
      */
-    @SafeVarargs
     public TransactionParsingPipeline(TransactionLineHandler... handlers) {
         if (handlers == null || handlers.length == 0) {
             this.firstHandler = null;

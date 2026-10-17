@@ -94,6 +94,8 @@ public class SimulationServiceEventTest {
         service.finish(6);
         require(observedAfterFailure.size() == observedBeforeUnsubscribe,
                 "Closing a subscription should unsubscribe idempotently");
+
+        System.out.println("SimulationServiceEventTest PASSED ✓");
     }
 
     private static void require(boolean condition, String message) {

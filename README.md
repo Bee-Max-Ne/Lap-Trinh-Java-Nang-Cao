@@ -1,4 +1,4 @@
-﻿# HUDD-TDS: Hệ Thống Giám Sát Trôi Dạt Độ Lợi (Utility Drift Detection)
+# HUDD-TDS: Hệ Thống Giám Sát Trôi Dạt Độ Lợi (Utility Drift Detection)
 
 Hệ thống mô phỏng, khai phá và giám sát sự thay đổi của các tập mục có độ lợi cao (**High Utility Itemsets - HUI**) và phát hiện hiện tượng trôi dạt độ lợi (**Concept / Utility Drift**) trên luồng dữ liệu giao dịch (**Transactional Data Streams**), hiện thực hóa thuật toán nghiên cứu **HUDD-TDS** (*Duong et al., High Utility Drift Detection in Quantitative Data Streams*).
 
@@ -14,7 +14,7 @@ Hệ thống mô phỏng, khai phá và giám sát sự thay đổi của các t
 - **Local drift**: So sánh utility của hợp các itemset xuất hiện ở hai checkpoint liền kề; itemset vắng mặt ở một checkpoint được xem có utility bằng 0. Alpha được hiệu chỉnh theo Bonferroni trên số giả thuyết.
 - **Tầng dữ liệu**: Đọc hai định dạng transaction (SPMF/HUIM và legacy), nạp investment table, dò và kiểm định dataset. `FullBenchmarkSuite` có cấu hình cho 9 dataset, nhưng dataset thực tế khả dụng tùy file hiện diện trên máy.
 - **Swing GUI**: Dùng `SwingWorker` cho công việc nền; hiển thị tiến độ/chỉ số, bảng HUI và drift, log, biểu đồ, lọc bảng và xuất báo cáo. Giao diện đăng ký nhận event từ application service; `SwingWorker` vẫn phụ trách concurrency và cập nhật component trên EDT.
-- **Bốn mẫu thiết kế**: `HUDD_TDS` nhận miner và hai drift strategy qua interface; `SimulationService` phát event có kiểu với subscription có thể đóng; GUI dùng `SimulationFacade` cho dataset, tạo service và xuất CSV; các Builder gom cấu hình mô phỏng, engine và event.
+- **Tám mẫu thiết kế**: `HUDD_TDS` nhận miner và hai drift strategy qua interface (**Strategy**); `SimulationService` phát event có kiểu với subscription có thể đóng (**Observer**); GUI dùng `SimulationFacade` cho dataset, tạo service và xuất CSV (**Facade**); các Builder gom cấu hình mô phỏng, engine và event (**Builder**); chia sẻ trạng thái Item bất biến để tiết kiệm RAM (**Flyweight**); tái chế đối tượng Transaction giảm tải GC (**Object Pool**); chuẩn hóa quy trình 6 bước phát hiện trôi dạt (**Template Method**); phân tích dòng giao dịch đa định dạng qua pipeline các handler linh hoạt (**Chain of Responsibility**).
 
 ---
 
@@ -34,10 +34,15 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 ├── docs/
 │   ├── README.md                       # Mục lục tài liệu hệ thống
 │   ├── architecture.md                 # Kiến trúc và dependency
-│   ├── design-patterns.md              # Strategy, Observer, Facade và Builder
+│   ├── design-patterns.md              # Toàn bộ 8 mẫu thiết kế trong hệ thống
 │   ├── design-patterns-presentation.md # Kịch bản trình bày chi tiết các mẫu
 │   ├── Facade_Pattern_Explanation.md   # Phạm vi và cách dùng Facade hiện tại
 │   ├── Builder_Pattern_Explanation.md  # Phạm vi và cách dùng Builder hiện tại
+│   ├── Flyweight_Pattern_Explanation.md # Phân tích mẫu Flyweight tối ưu bộ nhớ
+│   ├── Object_Pool_Pattern_Explanation.md # Phân tích mẫu Object Pool tái chế Transaction
+│   ├── Template_Method_Pattern_Explanation.md # Phân tích mẫu Template Method kiểm định trôi dạt
+│   ├── Chain_of_Responsibility_Pattern_Explanation.md # Phân tích mẫu Chain of Responsibility pipeline
+│   ├── tomtat1.md                      # Tóm tắt kiến trúc và các mẫu thiết kế
 │   ├── algorithm-and-data-flow.md      # Thuật toán và luồng transaction
 │   ├── event-and-gui-flow.md           # Luồng sự kiện, GUI, EDT và giới hạn kiểm thử
 │   ├── validation-and-baseline.md      # Kiểm thử, benchmark, baseline, xác minh cuối
@@ -51,13 +56,24 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 │   │   ├── HighUtilityItemset.java
 │   │   ├── Checkpoint.java
 │   │   ├── ItemsetVector.java
-│   │   └── DriftResult.java
+│   │   ├── DriftResult.java
+│   │   ├── flyweight/
+│   │   │   ├── ItemFlyweight.java
+│   │   │   └── ItemFactory.java
+│   │   └── pool/
+│   │       └── TransactionPool.java
 │   ├── data/
 │   │   ├── TransactionParser.java
 │   │   ├── InvestmentLoader.java
 │   │   ├── DatasetInfo.java
 │   │   ├── DatasetValidator.java
-│   │   └── DatasetManager.java
+│   │   ├── DatasetManager.java
+│   │   └── pipeline/
+│   │       ├── TransactionLineHandler.java
+│   │       ├── TransactionParsingPipeline.java
+│   │       ├── SpmfFormatHandler.java
+│   │       ├── LegacyFormatHandler.java
+│   │       └── EmptyAndCommentFilterHandler.java
 │   ├── math/
 │   │   └── UtilityMetrics.java
 │   ├── algorithm/
@@ -67,6 +83,7 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 │   │   ├── LocalDriftDetector.java
 │   │   ├── mining/HUIItemsetMiner.java
 │   │   └── drift/
+│   │       ├── AbstractDriftDetector.java
 │   │       ├── GlobalDriftStrategy.java
 │   │       └── LocalDriftStrategy.java
 │   ├── application/
@@ -84,21 +101,25 @@ khởi tạo, hoặc dùng kiểu dữ liệu của `B`.
 │       ├── ChartPanel.java
 │       └── DemoRunner.java
 └── test/
-    ├── BaselineRunner.java
-    ├── DataLayerTest.java
-    ├── DriftPairBenchmark.java
-    ├── EndToEndChessRunner.java
-    ├── FinalValidationSuite.java
-    ├── FullBenchmarkSuite.java
-    ├── StrategyInjectionTest.java
-    ├── SimulationServiceEventTest.java
-    ├── FacadePatternTest.java
-    ├── BuilderPatternTest.java
-    ├── ChartPanelTest.java
-    ├── DatasetServiceTest.java
-    ├── GlobalDriftDetectorStateTest.java
-    ├── CheckpointRetentionTest.java
-    └── CheckpointHistoryWriterTest.java
+    └── test/
+        ├── BaselineRunner.java
+        ├── DataLayerTest.java
+        ├── DriftPairBenchmark.java
+        ├── EndToEndChessRunner.java
+        ├── FinalValidationSuite.java
+        ├── FullBenchmarkSuite.java
+        ├── StrategyInjectionTest.java
+        ├── SimulationServiceEventTest.java
+        ├── FacadePatternTest.java
+        ├── BuilderPatternTest.java
+        ├── ChartPanelTest.java
+        ├── DatasetServiceTest.java
+        ├── GlobalDriftDetectorStateTest.java
+        ├── CheckpointRetentionTest.java
+        ├── CheckpointHistoryWriterTest.java
+        ├── FlyweightAndPoolTest.java
+        ├── TemplateMethodPatternTest.java
+        └── ParsingPipelineChainTest.java
 ```
 
 `DatasetManager` tìm dataset trong `data/datasets/`, thư mục
@@ -223,14 +244,23 @@ parser, math và engine được gọi từ bên trong các service đó.
 | `algorithm.GlobalDriftDetector`                       | Duy trì bộ cộng dồn hằng bộ nhớ/cut point, tính Hoeffding bounds và kiểm định thay đổi global.                    | `GlobalDriftStrategy`, `UtilityMetrics`, `DriftResult`.                                                           | Concrete Strategy; giữ overload chuỗi cũ`updateAndCheck(double)`.                                                    |
 | `algorithm.drift.LocalDriftStrategy`                  | Contract so sánh hai checkpoint và trả`DriftResult`.                                                                       | `Checkpoint`, `DriftResult`, `Consumer<String>`.                                                                  | Strategy interface; default implementation là`LocalDriftDetector`.                                                     |
 | `algorithm.LocalDriftDetector`                        | So sánh utility itemsets giữa hai checkpoint, dùng Bonferroni và trả itemset đầu tiên vượt ngưỡng.                  | `LocalDriftStrategy`, `UtilityMetrics`, `Checkpoint`, `HighUtilityItemset`, `DriftResult`.                    | Concrete Strategy; giữ overload chuỗi cũ`detect(List<Checkpoint>)`.                                                  |
+| `algorithm.drift.AbstractDriftDetector`               | Lớp trừu tượng định nghĩa khung kiểm định trôi dạt 6 bước cố định (`runDetection`).                                 | `DriftResult`.                                                                                                        | Template Method Pattern; các detector con kế thừa và cài đặt các bước kiểm định cụ thể.                                |
 | **Math — `math.UtilityMetrics`**               | Cung cấp decay, Hoeffding/Bonferroni, epsilon drift, variance, D_mo và vector construction.                                   | `HighUtilityItemset`, `ItemsetVector`.                                                                              | Utility class static; math layer tham chiếu model.                                                                       |
-| **Data — `data.TransactionParser`**            | Parse một dòng thành`Transaction` theo SPMF/HUIM hoặc legacy format.                                                      | `Transaction`, `Element`.                                                                                           | Parser static; hiện chưa có Strategy riêng theo format.                                                               |
+| **Data — `data.TransactionParser`**            | Parse một dòng thành`Transaction` theo SPMF/HUIM hoặc legacy format, ủy quyền cho pipeline.                             | `TransactionParsingPipeline`, `Transaction`.                                                                        | Facade parser tĩnh; ủy quyền phân tích cú pháp cho pipeline các Handler.                                                |
+| `data.pipeline.TransactionLineHandler`                | Interface định nghĩa bước xử lý dòng dữ liệu giao dịch trong chuỗi (`setNext`, `handle`).                             | `Transaction`.                                                                                                        | Handler interface trong Chain of Responsibility Pattern.                                                                 |
+| `data.pipeline.TransactionParsingPipeline`            | Quản lý và điều phối chuỗi liên kết các Handler bóc tách dòng giao dịch stream.                                     | `TransactionLineHandler`, `Transaction`.                                                                              | Chain of Responsibility pipeline điều phối; tuân thủ nguyên tắc Open/Closed (OCP).                                       |
+| `data.pipeline.EmptyAndCommentFilterHandler`          | Lọc bỏ dòng trống và các dòng chú thích bắt đầu bằng `#` hoặc `//`.                                                  | `TransactionLineHandler`, `Transaction`.                                                                              | Concrete Handler trong Chain of Responsibility.                                                                          |
+| `data.pipeline.SpmfFormatHandler`                     | Nhận diện và bóc tách định dạng SPMF / HUIM chuẩn (`items : TU : utils`).                                            | `TransactionLineHandler`, `Transaction`.                                                                              | Concrete Handler trong Chain of Responsibility.                                                                          |
+| `data.pipeline.LegacyFormatHandler`                   | Nhận diện và bóc tách định dạng Running Example (`item:quantity`).                                                    | `TransactionLineHandler`, `Transaction`.                                                                              | Concrete Handler trong Chain of Responsibility.                                                                          |
 | `data.InvestmentLoader`                               | Đọc investment file thành`Map<String, Double>`.                                                                            | Java I/O.                                                                                                               | Static loader; dòng có giá trị không hợp lệ được diagnostic và bỏ qua.                                        |
 | `data.DatasetInfo`                                    | Lưu tên dataset, file transaction/investment và metadata liên quan.                                                         | Java`File`.                                                                                                           | Metadata model.                                                                                                           |
 | `data.DatasetManager`                                 | Quét dataset directories, cung cấp metadata, mở transaction stream và nạp investment.                                      | `DatasetInfo`, `InvestmentLoader`.                                                                                  | Concrete filesystem manager; chưa có Repository interface.                                                              |
 | `data.DatasetValidator`                               | Parse và thống kê transaction, item, TU, investment; trả`ValidationReport`.                                               | `Element`, `Transaction`, `TransactionParser`, `InvestmentLoader`.                                              | Validator;`passed` hiện dựa trên có transaction hợp lệ và không có transaction parse lỗi.                     |
-| **Domain — `model.Element`**                   | Lưu item, quantity và/hoặc direct utility; hỗ trợ quantity-based và utility-based data.                                   | Không có.                                                                                                             | Domain model.                                                                                                             |
-| `model.Transaction`                                   | Lưu TID, elements, tra cứu element theo item và tính TU theo dữ liệu/external utility.                                    | `Element`.                                                                                                            | Domain entity;`elementMap` cho lookup item.                                                                             |
+| **Domain — `model.Element`**                   | Lưu item, quantity và/hoặc direct utility; hỗ trợ quantity-based và utility-based data.                                   | `ItemFlyweight`.                                                                                                      | Domain model; lưu tham chiếu tới `ItemFlyweight` chia sẻ để tối ưu hóa bộ nhớ RAM.                                      |
+| `model.flyweight.ItemFlyweight`                       | Lưu trữ trạng thái nội tại bất biến của Item (tên, chỉ số, external utility).                                        | Không có.                                                                                                             | Flyweight Pattern; biểu diễn immutable item chia sẻ chung cho hàng triệu phần tử.                                        |
+| `model.flyweight.ItemFactory`                         | Quản lý kho đệm `ConcurrentHashMap` lưu trữ và chia sẻ các đối tượng `ItemFlyweight`.                                 | `ItemFlyweight`.                                                                                                      | Flyweight Factory thread-safe.                                                                                           |
+| `model.pool.TransactionPool`                          | Hồ chứa đối tượng `Transaction` (`ArrayBlockingQueue`) để tái sử dụng trong luồng stream.                             | `Transaction`.                                                                                                        | Object Pool Pattern; giảm thiểu cấp phát mới và giảm áp lực thu gom rác (GC).                                            |
+| `model.Transaction`                                   | Lưu TID, elements, tra cứu element theo item và tính TU theo dữ liệu/external utility; hỗ trợ `reset()`.             | `Element`.                                                                                                            | Domain entity;`elementMap` cho lookup item; có phương thức `reset()` phục vụ tái chế trong Pool.                         |
 | `model.HighUtilityItemset`                            | Lưu itemset, utility từng item, total utility và distance tới root.                                                         | Collection types.                                                                                                       | Domain model.                                                                                                             |
 | `model.Checkpoint`                                    | Lưu TID, danh sách HUI và global distance tại một checkpoint.                                                              | `HighUtilityItemset`.                                                                                                 | Domain snapshot.                                                                                                          |
 | `model.ItemsetVector`                                 | Lưu vector utility theo dimensions.                                                                                            | Collection types.                                                                                                       | Value object cho phép tính/hiển thị vector.                                                                           |
@@ -253,6 +283,10 @@ Các lớp `test.*` độc lập dùng `main`, không phải JUnit:
 | `DatasetServiceTest`         | Kiểm tra discovery, investment, stream, estimate và validation application API.                          | `DatasetService`.                                                                    |
 | `DriftPairBenchmark`         | Nối Chess/NewChess và Mushrooms/NewMushroom để khảo sát drift.                                       | `HUDD_TDS`, data API, model.                                                         |
 | `EndToEndChessRunner`        | Chạy pipeline trên dataset Chess.                                                                        | `HUDD_TDS`, data API, model.                                                         |
+| `BuilderPatternTest`         | Kiểm tra khởi tạo Engine và Event qua Fluent API, validate tham số biên.                                  | `HUDD_TDS`, `SimulationEvent`, `SimulationConfiguration`.                             |
+| `FlyweightAndPoolTest`       | Kiểm tra chia sẻ ItemFlyweight trong Element và tái chế Transaction qua TransactionPool.                 | `ItemFlyweight`, `ItemFactory`, `Element`, `TransactionPool`, `Transaction`.           |
+| `ParsingPipelineChainTest`   | Kiểm tra chuỗi Handler lọc comment/dòng trống và bóc tách định dạng SPMF, Legacy format.                  | `TransactionParsingPipeline`, `TransactionLineHandler`, các Handler bóc tách.         |
+| `TemplateMethodPatternTest`  | Kiểm tra quy trình kiểm định trôi dạt 6 bước cố định và cơ chế dừng sớm (short-circuit).                  | `AbstractDriftDetector`, `DriftResult`.                                               |
 | `FullBenchmarkSuite`         | Benchmark cấu hình trên nhiều dataset và ghi log.                                                     | `HUDD_TDS`, data API, model.                                                         |
 
 Thông tin source inventory và dependency này được đặt tập trung trong README để
@@ -398,7 +432,7 @@ suite đã được chạy trong môi trường hiện tại. Hồ sơ kết qu�
 
 ### 2.8. Tám mẫu thiết kế được áp dụng trực tiếp
 
-Trong source hiện tại, bốn pattern giải quyết bốn trách nhiệm khác nhau:
+Trong source hiện tại, tám pattern giải quyết tám trách nhiệm khác nhau:
 
 | Pattern            | Vấn đề được giải quyết                                                                                               | Vị trí trong mã                                                                                                |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -406,6 +440,10 @@ Trong source hiện tại, bốn pattern giải quyết bốn trách nhiệm kh�
 | **Observer** | Tách nơi phát kết quả khỏi GUI; quản lý vòng đời subscription và báo lỗi listener rõ ràng. | `SimulationService` phát `SimulationEvent`; listener của GUI chuyển event đến `SwingWorker.process()`. |
 | **Facade**   | Cung cấp điểm truy cập gọn cho các thao tác dataset và khởi tạo mô phỏng mà GUI cần.                           | `SimulationFacade` phối hợp `DatasetService` và `SimulationService`; GUI gọi Facade.                    |
 | **Builder**  | Gom cấu hình mô phỏng/event và kiểm tra tham số cùng payload cốt yếu. | `SimulationConfiguration.Builder`, `HUDD_TDS.Builder`, `SimulationEvent.Builder`. |
+| **Flyweight** | Chia sẻ trạng thái nội tại bất biến của Item, giảm thiểu tiêu hao bộ nhớ RAM khi các item lặp lại hàng triệu lần trong luồng stream. | `ItemFlyweight`, `ItemFactory`, `Element`. |
+| **Object Pool** | Tái sử dụng đối tượng `Transaction` trong cửa sổ trượt, giảm thiểu cấp phát mới và giảm áp lực lên bộ thu gom rác (GC). | `TransactionPool`, `Transaction.reset()`, `HUDD_TDS`. |
+| **Template Method** | Chuẩn hóa bộ khung quy trình 6 bước cố định cho thuật toán kiểm định trôi dạt (kiểm tra, tính thống kê, ngưỡng, phán quyết, trace, tạo kết quả). | `AbstractDriftDetector.runDetection()`, `GlobalDriftDetector`, `LocalDriftDetector`. |
+| **Chain of Responsibility** | Tách rời logic nhận diện và phân tích cú pháp dòng giao dịch đa định dạng (SPMF, Legacy, lọc comment/trống) qua chuỗi handler độc lập. | `TransactionParsingPipeline`, `TransactionLineHandler`, `EmptyAndCommentFilterHandler`, `SpmfFormatHandler`, `LegacyFormatHandler`. |
 
 #### 2.8.1. Strategy Pattern — thay thế thuật toán qua contract
 
@@ -533,7 +571,6 @@ Mẫu **Builder Pattern** giải quyết bằng cách cung cấp Fluent API:
 snapshot map utility và payload event theo loại; `FacadePatternTest` xác nhận
 cấu hình mô phỏng chuyển Strategy tùy chỉnh vào engine.
 
-#### 2.8.5. Kiểm chứng bốn mẫu thiết kế
 #### 2.8.5. Flyweight Pattern
 - **Mục đích**: Chia sẻ trạng thái nội tại (intrinsic state) của các Item để giảm bộ nhớ RAM khi có hàng triệu item trùng lặp.
 - **Files chính**:
@@ -583,7 +620,23 @@ cấu hình mô phỏng chuyển Strategy tùy chỉnh vào engine.
 - `FacadePatternTest` kiểm tra dataset API, tạo service, Strategy injection,
   event checkpoint và CSV UTF-8/escaping qua Facade.
 - `BuilderPatternTest` kiểm tra khởi tạo Engine và Event qua Fluent API cùng validation tham số; `FacadePatternTest` kiểm tra cấu hình mô phỏng.
-- `DatasetServiceTest` kiểm tra application service cho thaoácataset.
+- `FlyweightAndPoolTest` kiểm tra chia sẻ đối tượng `ItemFlyweight`, tra cứu qua `ItemFactory`, tính toán utility và tái chế `Transaction` qua `TransactionPool.reset()`.
+- `TemplateMethodPatternTest` kiểm tra quy trình 6 bước chuẩn hóa của `AbstractDriftDetector`, xác minh dừng sớm khi thiếu mẫu (short-circuit) và xây dựng kết quả trôi dạt.
+- `ParsingPipelineChainTest` kiểm tra chuỗi pipeline lọc dòng trống/comment, bóc tách chính xác cả hai định dạng SPMF và Legacy, cùng khả năng chuyển tiếp giữa các handler.
+- `DatasetServiceTest` kiểm tra application service cho thao tác dataset.
+
+##### Bảng tổng hợp kiểm chứng 8 mẫu thiết kế:
+
+| Mẫu thiết kế | Kiểm thử chính | Phạm vi xác nhận |
+|---|---|---|
+| **Strategy** | `StrategyInjectionTest` | Tiêm đủ ba contract, xác nhận delegation và API drift legacy/typed |
+| **Observer** | `SimulationServiceEventTest` | Loại/payload event, subscription lifecycle, dispatch tiếp khi listener lỗi |
+| **Facade** | `FacadePatternTest` | Dataset, tạo service, event, Strategy injection và CSV export |
+| **Builder** | `BuilderPatternTest`, `FacadePatternTest` | Cấu hình engine/event/mô phỏng, validate tham số và fluent API |
+| **Flyweight** | `FlyweightAndPoolTest` | Chia sẻ ItemFlyweight, tra cứu ItemFactory, giữ nguyên API của Element |
+| **Object Pool** | `FlyweightAndPoolTest` | Tái sử dụng instance Transaction, làm sạch trạng thái qua reset() |
+| **Template Method** | `TemplateMethodPatternTest` | Trình tự 6 bước cố định, dừng sớm khi thiếu mẫu, phán quyết trôi dạt |
+| **Chain of Responsibility** | `ParsingPipelineChainTest` | Lọc dòng rỗng/chú thích, bóc tách SPMF và Legacy format, chuyển tiếp chuỗi |
 
 Các API Strategy/Observer/Facade/Builder, Flyweight, Object Pool, Template Method, Chain of Responsibility và test tương ứng được mô tả ở đây theo source
 hiện tại. Việc có tám pattern này không đồng nghĩa toàn hệ thống đã dùng kiến trúc
@@ -758,7 +811,7 @@ thư mục gốc sau khi biên dịch:
   ```
 - **Kiểm tra thứ tự TID và hiển thị ChartPanel**:
   ```powershell
-  java -cp out huddtds.demo.ChartPanelTest
+  java -cp out test.ChartPanelTest
   ```
 - **So sánh bộ cộng dồn Global Drift với bộ tham chiếu**:
   ```powershell
@@ -771,6 +824,18 @@ thư mục gốc sau khi biên dịch:
 - **Kiểm tra ghi/escape CSV lịch sử checkpoint và HUI**:
   ```powershell
   java -cp out test.CheckpointHistoryWriterTest
+  ```
+- **Kiểm tra Flyweight Pattern và Object Pool Pattern**:
+  ```powershell
+  java -cp out test.FlyweightAndPoolTest
+  ```
+- **Kiểm tra luồng kiểm định Template Method 6 bước**:
+  ```powershell
+  java -cp out test.TemplateMethodPatternTest
+  ```
+- **Kiểm tra chuỗi Chain of Responsibility Pipeline cho định dạng giao dịch**:
+  ```powershell
+  java -cp out test.ParsingPipelineChainTest
   ```
 - **Smoke test application dataset service**:
   ```powershell

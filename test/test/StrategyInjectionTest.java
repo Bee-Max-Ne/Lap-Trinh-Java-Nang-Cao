@@ -55,6 +55,8 @@ public class StrategyInjectionTest {
         require(localResult.getType() == DriftResult.DriftType.LOCAL_DRIFT
                         && localResult.getAffectedItemsets().contains("itemset"),
                 "Typed local API should expose the affected itemset");
+
+        System.out.println("StrategyInjectionTest PASSED ✓");
     }
 
     private static void require(boolean condition, String message) {

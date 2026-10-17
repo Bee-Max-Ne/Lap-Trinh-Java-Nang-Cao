@@ -1,4 +1,4 @@
-﻿package huddtds.algorithm;
+package huddtds.algorithm;
 
 import huddtds.algorithm.drift.AbstractDriftDetector;
 import huddtds.algorithm.drift.GlobalDriftStrategy;
@@ -432,10 +432,4 @@ public class GlobalDriftDetector extends AbstractDriftDetector implements Global
         cutPoint = 0;
         lastDirection = null;
     }
-
-    @Override
-    public String updateAndCheck(double observation) {
-        DriftResult result = updateAndCheck(observation, -1, -1);
-        return result.isDetected() ? result.getDirection() : null;
-    
 }

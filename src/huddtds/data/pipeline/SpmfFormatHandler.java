@@ -1,8 +1,6 @@
 package huddtds.data.pipeline;
 
-import huddtds.model.Element;
 import huddtds.model.Transaction;
-import huddtds.model.flyweight.ItemFactory;
 
 /**
  * Bộ xử lý định dạng SPMF / HUIM chuẩn:
