@@ -22,7 +22,10 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.text.BadLocationException;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.io.*;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -70,6 +73,7 @@ public class HUDD_TDS_GUI extends JFrame {
     private final JButton btnPause;
     private final JButton btnStop;
     private final JButton btnReset;
+    private final JButton btnCleanMemory;
     private final JButton btnExport;
     private final JCheckBox chkTraceEachTransaction;
 
@@ -94,9 +98,18 @@ public class HUDD_TDS_GUI extends JFrame {
     private final TableRowSorter<DefaultTableModel> driftSorter;
     private final JComboBox<String> cbFilterDrift;
 
-    // Dữ liệu nhập tay & Thống kê tổng quan
+    // Dữ liệu nhập tay & Thống kê tổng quan (Tab 4 Dashboard)
     private final JTextArea manualInputArea;
+    private final JLabel lblTabKpiTime;
+    private final JLabel lblTabKpiThroughput;
+    private final JLabel lblTabKpiRam;
+    private final JLabel lblTabKpiAllocated;
+    private final JLabel lblTabKpiHui;
+    private final JLabel lblTabKpiDriftRate;
+    private final DefaultTableModel statsTableModel;
+    private final JTable statsTable;
     private final JTextArea summaryStatsArea;
+    private final SummaryChartsPanel summaryChartsPanel;
 
     // Đồ thị trực quan & Chi tiết tính toán
     private final ChartPanel chartPanel;
@@ -241,6 +254,12 @@ public class HUDD_TDS_GUI extends JFrame {
         btnReset = new JButton("🔄 Đặt lại");
         controlRow.add(btnReset);
 
+        btnCleanMemory = new JButton("🧹 Dọn RAM JVM");
+        btnCleanMemory.setToolTipText("Thu gom rác (System.gc) để giải phóng bộ nhớ Heap và chuẩn hóa baseline thực nghiệm");
+        btnCleanMemory.setBackground(new Color(108, 117, 125));
+        btnCleanMemory.setForeground(Color.WHITE);
+        controlRow.add(btnCleanMemory);
+
         btnExport = new JButton("💾 Xuất báo cáo ▼");
         btnExport.setToolTipText("Xuất Nhật ký HUI, Nhật ký Drift hoặc Báo cáo thống kê");
         controlRow.add(btnExport);
@@ -346,12 +365,106 @@ public class HUDD_TDS_GUI extends JFrame {
         manualPanel.add(new JScrollPane(manualInputArea), BorderLayout.CENTER);
         tabbedPane.addTab("Dữ liệu nhập tay", manualPanel);
 
-        // TAB 4: TỔNG QUAN & THỐNG KÊ (SUMMARY STATS)
+        // TAB 4: TỔNG QUAN & THỐNG KÊ (SUMMARY STATS & DASHBOARD)
+        JPanel summaryDashboardPanel = new JPanel(new BorderLayout(6, 6));
+        summaryDashboardPanel.setBorder(new EmptyBorder(6, 6, 6, 6));
+
+        // 1. Thẻ KPI Dashboard
+        JPanel summaryKpiPanel = new JPanel(new GridLayout(1, 6, 6, 6));
+        summaryKpiPanel.setBorder(new EmptyBorder(0, 0, 4, 0));
+        lblTabKpiTime = createMetricCard(summaryKpiPanel, "THỜI GIAN", "0.0 s", new Color(243, 232, 255));
+        lblTabKpiThroughput = createMetricCard(summaryKpiPanel, "THÔNG LƯỢNG (TX/S)", "0 (Đỉnh: 0)", new Color(224, 242, 254));
+        lblTabKpiRam = createMetricCard(summaryKpiPanel, "RAM HEAP", "0.0 MB (Đỉnh: 0.0)", new Color(254, 243, 199));
+        lblTabKpiAllocated = createMetricCard(summaryKpiPanel, "CẤP PHÁT (NEW)", "0 obj", new Color(240, 253, 250));
+        lblTabKpiHui = createMetricCard(summaryKpiPanel, "HUI DUY NHẤT", "0 patterns", new Color(220, 252, 231));
+        lblTabKpiDriftRate = createMetricCard(summaryKpiPanel, "TẦN SUẤT DRIFT", "0.0% (G:0, L:0)", new Color(254, 226, 226));
+        summaryDashboardPanel.add(summaryKpiPanel, BorderLayout.NORTH);
+
+        // 2. Bảng số liệu chi tiết (Trái)
+        String[] statsColumns = {"Chỉ số / Tiêu chí đánh giá", "Giá trị thực nghiệm"};
+        statsTableModel = new DefaultTableModel(statsColumns, 0) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        statsTable = new JTable(statsTableModel);
+        statsTable.setRowHeight(22);
+        statsTable.getColumnModel().getColumn(0).setPreferredWidth(230);
+        statsTable.getColumnModel().getColumn(1).setPreferredWidth(210);
+        statsTable.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
+            private static final long serialVersionUID = 1L;
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                Object firstCol = table.getValueAt(row, 0);
+                boolean isHeader = firstCol != null && firstCol.toString().startsWith("▶");
+                if (isHeader) {
+                    c.setFont(c.getFont().deriveFont(Font.BOLD));
+                    c.setBackground(new Color(235, 240, 245));
+                    c.setForeground(new Color(30, 41, 59));
+                } else if (!isSelected) {
+                    c.setFont(c.getFont().deriveFont(Font.PLAIN));
+                    c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(248, 250, 252));
+                    c.setForeground(Color.BLACK);
+                }
+                return c;
+            }
+        });
+
+        JPanel statsTableContainer = new JPanel(new BorderLayout(4, 4));
+        statsTableContainer.setBorder(BorderFactory.createTitledBorder("Bảng số liệu phân nhóm chi tiết"));
+        statsTableContainer.add(new JScrollPane(statsTable), BorderLayout.CENTER);
+
+        // 3. Khung bên phải: TabbedPane chứa "Đồ thị phân tích" & "Báo cáo văn bản"
+        summaryChartsPanel = new SummaryChartsPanel();
+
+        JPanel statsReportContainer = new JPanel(new BorderLayout(4, 4));
         summaryStatsArea = new JTextArea();
         summaryStatsArea.setEditable(false);
         summaryStatsArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        summaryStatsArea.setText("Chưa có thống kê thực nghiệm. Nhấn 'Phát luồng (RUN)' để tiến hành.");
-        tabbedPane.addTab("Tổng quan Thống kê", new JScrollPane(summaryStatsArea));
+        statsReportContainer.add(new JScrollPane(summaryStatsArea), BorderLayout.CENTER);
+
+        JPanel statsToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        JButton btnExportHtml = new JButton("🌐 Xuất Báo cáo HTML (Kèm biểu đồ)");
+        btnExportHtml.setBackground(new Color(37, 99, 235));
+        btnExportHtml.setForeground(Color.WHITE);
+        btnExportHtml.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnExportHtml.setToolTipText("Xuất toàn bộ số liệu và 6 biểu đồ vào 1 tệp HTML dashboard, sẵn sàng in PDF hoặc chia sẻ");
+        btnExportHtml.addActionListener(e -> exportFullHtmlReport());
+
+        JButton btnCopySummary = new JButton("📋 Sao chép báo cáo");
+        btnCopySummary.setToolTipText("Sao chép nội dung báo cáo vào bộ nhớ tạm (Clipboard)");
+        JButton btnSaveSummary = new JButton("💾 Xuất file TXT");
+        JButton btnRefreshSummary = new JButton("🔄 Làm mới");
+
+        btnCopySummary.addActionListener(e -> {
+            String text = summaryStatsArea.getText();
+            if (text != null && !text.isEmpty()) {
+                StringSelection selection = new StringSelection(text);
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+                JOptionPane.showMessageDialog(this, "Đã sao chép nội dung báo cáo thống kê vào Clipboard!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+        btnSaveSummary.addActionListener(e -> exportSummaryReport());
+        btnRefreshSummary.addActionListener(e -> updateSummaryStatsPreview());
+
+        statsToolbar.add(btnExportHtml);
+        statsToolbar.add(btnCopySummary);
+        statsToolbar.add(btnSaveSummary);
+        statsToolbar.add(btnRefreshSummary);
+        statsReportContainer.add(statsToolbar, BorderLayout.SOUTH);
+
+        JTabbedPane summaryRightTabbedPane = new JTabbedPane();
+        summaryRightTabbedPane.addTab("📊 Đồ thị phân tích & Tài nguyên", summaryChartsPanel);
+        summaryRightTabbedPane.addTab("📋 Báo cáo tổng kết (Text)", statsReportContainer);
+
+        JSplitPane summarySplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statsTableContainer, summaryRightTabbedPane);
+        summarySplitPane.setResizeWeight(0.50);
+        summaryDashboardPanel.add(summarySplitPane, BorderLayout.CENTER);
+
+        tabbedPane.addTab("Tổng quan Thống kê", summaryDashboardPanel);
 
         processLogArea = new JTextArea();
         processLogArea.setEditable(false);
@@ -371,8 +484,14 @@ public class HUDD_TDS_GUI extends JFrame {
 
         JPanel chartControlBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
         chartControlBar.add(new JLabel("Chỉ số:"));
-        cbChartMetric = new JComboBox<>(new String[]{"Khoảng cách toàn cục (DISHS)", "Số lượng HUI"});
-        cbChartMetric.setPreferredSize(new Dimension(190, 24));
+        cbChartMetric = new JComboBox<>(new String[]{
+            "Khoảng cách toàn cục (DISHS)",
+            "Số lượng HUI (Đường)",
+            "Số lượng HUI (Cột phân màu)",
+            "Tiêu thụ RAM (MB)",
+            "Thông lượng (tx/giây)"
+        });
+        cbChartMetric.setPreferredSize(new Dimension(215, 24));
         chartControlBar.add(cbChartMetric);
 
         chartContainer.add(chartControlBar, BorderLayout.NORTH);
@@ -407,6 +526,7 @@ public class HUDD_TDS_GUI extends JFrame {
         btnPause.addActionListener(e -> onTogglePause());
         btnStop.addActionListener(e -> onStopSimulation());
         btnReset.addActionListener(e -> onReset());
+        btnCleanMemory.addActionListener(e -> onCleanMemory());
         btnExport.addActionListener(e -> onShowExportMenu());
 
         // Thanh trượt tốc độ
@@ -422,10 +542,12 @@ public class HUDD_TDS_GUI extends JFrame {
         // Đổi chế độ vẽ trên ChartPanel
         cbChartMetric.addActionListener(e -> {
             int idx = cbChartMetric.getSelectedIndex();
-            if (idx == 0) {
-                chartPanel.setMetricMode(ChartPanel.MetricMode.GLOBAL_DISTANCE);
-            } else {
-                chartPanel.setMetricMode(ChartPanel.MetricMode.HUI_COUNT);
+            switch (idx) {
+                case 0 -> chartPanel.setMetricMode(ChartPanel.MetricMode.GLOBAL_DISTANCE);
+                case 1 -> chartPanel.setMetricMode(ChartPanel.MetricMode.HUI_COUNT);
+                case 2 -> chartPanel.setMetricMode(ChartPanel.MetricMode.BAR_HUI_COUNT);
+                case 3 -> chartPanel.setMetricMode(ChartPanel.MetricMode.RAM_USAGE);
+                case 4 -> chartPanel.setMetricMode(ChartPanel.MetricMode.THROUGHPUT);
             }
         });
 
@@ -441,6 +563,21 @@ public class HUDD_TDS_GUI extends JFrame {
 
         // Lọc bảng Drift theo loại
         cbFilterDrift.addActionListener(e -> applyDriftFilter());
+
+        // Tự động cập nhật bản xem trước của Thống kê Tổng quan khi thay đổi tham số
+        DocumentListener paramListener = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { updateSummaryStatsPreview(); }
+            @Override
+            public void removeUpdate(DocumentEvent e) { updateSummaryStatsPreview(); }
+            @Override
+            public void changedUpdate(DocumentEvent e) { updateSummaryStatsPreview(); }
+        };
+        txtMinUtil.getDocument().addDocumentListener(paramListener);
+        txtInterval.getDocument().addDocumentListener(paramListener);
+        txtWindowSize.getDocument().addDocumentListener(paramListener);
+        txtAlpha.getDocument().addDocumentListener(paramListener);
+        txtMaxPattern.getDocument().addDocumentListener(paramListener);
 
         // Nạp tham số mặc định theo dataset ban đầu
         onDatasetChanged();
@@ -589,6 +726,164 @@ public class HUDD_TDS_GUI extends JFrame {
             txtMaxPattern.setText("3");
             txtMaxTransactions.setText("0");
         }
+
+        updateSummaryStatsPreview();
+    }
+
+    private void updateSummaryStatsPreview() {
+        if (currentWorker != null && !currentWorker.isDone()) {
+            return;
+        }
+        String selected = (String) cbDatasets.getSelectedItem();
+        if (selected == null) selected = "Running Example (Mẫu)";
+        try {
+            double minutil = Double.parseDouble(txtMinUtil.getText().trim());
+            int interval = Integer.parseInt(txtInterval.getText().trim());
+            int windowSize = Integer.parseInt(txtWindowSize.getText().trim());
+            double alpha = Double.parseDouble(txtAlpha.getText().trim());
+            int maxPattern = Integer.parseInt(txtMaxPattern.getText().trim());
+
+            Runtime rt = Runtime.getRuntime();
+            double curRamMb = (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0);
+            double maxRamMb = rt.maxMemory() / (1024.0 * 1024.0);
+
+            updateSummaryDashboard(
+                    selected, minutil, interval, windowSize, alpha, maxPattern,
+                    0, 0, 0, 0, 0.0,
+                    0, 0, curRamMb, curRamMb, maxRamMb,
+                    0, 0, 0.0, 0L,
+                    0, 0, 0,
+                    0.0, 0.0, "N/A", 0.0,
+                    "SẴN SÀNG PHÁT LUỒNG (Nhấn 'Phát luồng (RUN)' để tiến hành)"
+            );
+        } catch (Exception e) {
+            summaryStatsArea.setText("Chưa có thống kê thực nghiệm. Nhấn 'Phát luồng (RUN)' để tiến hành.");
+        }
+    }
+
+    private void updateSummaryDashboard(
+            String dataset, double minutil, int interval, int window, double alpha, int maxLen,
+            int totalTx, int totalCp, int gDrift, int lDrift, double elapsedSec,
+            int avgTps, int peakTps, double currentRamMb, double peakRamMb, double maxRamMb,
+            long gcCount, long gcTimeMs, double gcOverheadPct, long totalAllocatedObjects,
+            int distinctHuis, int totalHuis, int maxHuiPerCp,
+            double avgDisHs, double maxDisHs, String topItemset, double topUtility,
+            String executionStatus
+    ) {
+        double driftRate = totalCp > 0 ? (((double) (gDrift + lDrift) / totalCp) * 100.0) : 0.0;
+
+        // Cập nhật thẻ KPI Dashboard
+        lblTabKpiTime.setText(String.format(Locale.US, "%.1f s", elapsedSec));
+        lblTabKpiThroughput.setText(String.format(Locale.US, "%,d (Đỉnh: %,d)", avgTps, peakTps));
+        lblTabKpiRam.setText(String.format(Locale.US, "%.1f MB (Đỉnh: %.1f)", currentRamMb, peakRamMb));
+        lblTabKpiAllocated.setText(String.format(Locale.US, "%,d obj", totalAllocatedObjects));
+        lblTabKpiHui.setText(String.format(Locale.US, "%,d patterns", distinctHuis));
+        lblTabKpiDriftRate.setText(String.format(Locale.US, "%.1f%% (G:%d, L:%d)", driftRate, gDrift, lDrift));
+
+        // Cập nhật Đồ thị phân tích & Tài nguyên
+        if (summaryChartsPanel != null) {
+            summaryChartsPanel.updateData(
+                    totalCp, gDrift, lDrift,
+                    currentRamMb, peakRamMb, maxRamMb,
+                    avgTps, peakTps,
+                    gcCount, gcTimeMs,
+                    gcOverheadPct, totalAllocatedObjects
+            );
+        }
+
+        // Cập nhật bảng phân nhóm chi tiết
+        statsTableModel.setRowCount(0);
+        statsTableModel.addRow(new Object[]{"▶ I. CẤU HÌNH & KIẾN TRÚC MÔ HÌNH", "--------------------------------------"});
+        statsTableModel.addRow(new Object[]{"  Bộ dữ liệu (Dataset)", dataset});
+        statsTableModel.addRow(new Object[]{"  Ngưỡng MinUtil | Interval | Window", String.format(Locale.US, "%.2f | %d | %d", minutil, interval, window)});
+        statsTableModel.addRow(new Object[]{"  Mức Alpha | Max Pattern Length", String.format(Locale.US, "%.2f | %d", alpha, maxLen)});
+        statsTableModel.addRow(new Object[]{"  Mô hình kiến trúc phần mềm", "Design Patterns (Object Pool, Flyweight, Facade, Strategy, Pipeline)"});
+        statsTableModel.addRow(new Object[]{"  Cơ chế quản lý đối tượng", "Tái sử dụng qua TransactionPool & ItemFactory Flyweight"});
+        statsTableModel.addRow(new Object[]{"  Trạng thái thực thi", executionStatus});
+
+        statsTableModel.addRow(new Object[]{"▶ II. HIỆU NĂNG & TÀI NGUYÊN (RESOURCES)", "--------------------------------------"});
+        statsTableModel.addRow(new Object[]{"  Thời gian thực thi (Elapsed Time)", String.format(Locale.US, "%.2f giây", elapsedSec)});
+        statsTableModel.addRow(new Object[]{"  Tốc độ thông lượng trung bình", String.format(Locale.US, "%,d tx/giây", avgTps)});
+        statsTableModel.addRow(new Object[]{"  Tốc độ thông lượng đỉnh (Peak TPS)", String.format(Locale.US, "%,d tx/giây", peakTps)});
+        statsTableModel.addRow(new Object[]{"  Bộ nhớ RAM Heap đang dùng", String.format(Locale.US, "%.2f MB", currentRamMb)});
+        statsTableModel.addRow(new Object[]{"  Bộ nhớ RAM Heap đỉnh điểm (Peak Heap)", String.format(Locale.US, "%.2f MB", peakRamMb)});
+        statsTableModel.addRow(new Object[]{"  Giới hạn bộ nhớ JVM (Max Heap)", String.format(Locale.US, "%.2f MB", maxRamMb)});
+        statsTableModel.addRow(new Object[]{"  Ước tính đối tượng đã xử lý (Processed)", String.format(Locale.US, "%,d đối tượng (tái sử dụng qua Pool)", totalAllocatedObjects)});
+        statsTableModel.addRow(new Object[]{"  Thu gom rác (Garbage Collection)", String.format(Locale.US, "%d lần (%d ms pause)", gcCount, gcTimeMs)});
+        statsTableModel.addRow(new Object[]{"  Tỷ lệ thời gian dừng GC (GC Overhead)", String.format(Locale.US, "%.2f%% tổng thời gian CPU", gcOverheadPct)});
+        double avgCpMs = totalCp > 0 ? (elapsedSec * 1000.0 / totalCp) : 0.0;
+        statsTableModel.addRow(new Object[]{"  Thời gian xử lý TB / Checkpoint", String.format(Locale.US, "%.2f ms/checkpoint", avgCpMs)});
+
+        statsTableModel.addRow(new Object[]{"▶ III. KHAI PHÁ TẬP MỤC ĐỘ LỢI CAO (HUI)", "--------------------------------------"});
+        statsTableModel.addRow(new Object[]{"  Số tập mục HUI phân biệt (Distinct)", String.format(Locale.US, "%,d tập mục duy nhất", distinctHuis)});
+        statsTableModel.addRow(new Object[]{"  Tổng số lượt HUI phát hiện", String.format(Locale.US, "%,d lượt", totalHuis)});
+        double avgHuiPerCp = totalCp > 0 ? ((double) totalHuis / totalCp) : 0.0;
+        statsTableModel.addRow(new Object[]{"  Số HUI trung bình / Checkpoint", String.format(Locale.US, "%.1f itemsets", avgHuiPerCp)});
+        statsTableModel.addRow(new Object[]{"  Số HUI lớn nhất tại 1 Checkpoint", String.format(Locale.US, "%,d itemsets", maxHuiPerCp)});
+        statsTableModel.addRow(new Object[]{"  Top HUI có độ lợi lớn nhất", topItemset + " (Utility: " + String.format(Locale.US, "%.2f", topUtility) + ")"});
+
+        statsTableModel.addRow(new Object[]{"▶ IV. GIÁM SÁT TRÔI DẠT (CONCEPT DRIFT)", "--------------------------------------"});
+        statsTableModel.addRow(new Object[]{"  Tổng số Checkpoint đã tạo", String.format(Locale.US, "%,d", totalCp)});
+        statsTableModel.addRow(new Object[]{"  Số lần phát hiện Global Drift", String.format(Locale.US, "%,d lần", gDrift)});
+        statsTableModel.addRow(new Object[]{"  Số lần phát hiện Local Drift", String.format(Locale.US, "%,d lần", lDrift)});
+        statsTableModel.addRow(new Object[]{"  Tần suất xuất hiện Trôi dạt (Rate)", String.format(Locale.US, "%.1f%% (%d/%d checkpoints)", driftRate, (gDrift + lDrift), totalCp)});
+        statsTableModel.addRow(new Object[]{"  Khoảng cách DIS_HS trung bình", String.format(Locale.US, "%.4f", avgDisHs)});
+        statsTableModel.addRow(new Object[]{"  Khoảng cách DIS_HS đỉnh điểm", String.format(Locale.US, "%.4f", maxDisHs)});
+
+        // Cập nhật văn bản báo cáo khoa học
+        summaryStatsArea.setText(String.format(Locale.US,
+                "================================================================================%n"
+                + "       BÁO CÁO TỔNG HỢP THỰC NGHIỆM HUDD-TDS (DESIGN PATTERNS)                 %n"
+                + "================================================================================%n"
+                + "1. CẤU HÌNH THỰC NGHIỆM:%n"
+                + "   - Bộ dữ liệu (Dataset)            : %s%n"
+                + "   - Ngưỡng độ lợi tối thiểu (MinUtil): %.2f%n"
+                + "   - Chu kỳ kiểm tra (Interval)      : %d giao dịch%n"
+                + "   - Kích thước cửa sổ (Window Size) : %d giao dịch%n"
+                + "   - Mức ý nghĩa thống kê (Alpha)    : %.4f%n"
+                + "   - Độ dài tập mục tối đa (MaxLen)  : %d%n"
+                + "   - Mô hình kiến trúc               : Design Patterns (Pool, Flyweight, Facade, Strategy, Pipeline)%n"
+                + "   - Quản lý đối tượng               : Tái sử dụng qua TransactionPool & ItemFactory Flyweight%n"
+                + "--------------------------------------------------------------------------------%n"
+                + "2. HIỆU NĂNG & TÀI NGUYÊN HỆ THỐNG:%n"
+                + "   - Tổng số giao dịch đã xử lý      : %,d tx%n"
+                + "   - Tổng thời gian thực thi         : %.2f giây%n"
+                + "   - Tốc độ thông lượng trung bình   : %,d tx/giây%n"
+                + "   - Tốc độ thông lượng đỉnh điểm    : %,d tx/giây%n"
+                + "   - Bộ nhớ RAM Heap tiêu thụ        : %.2f MB (Đỉnh: %.2f MB | Max: %.2f MB)%n"
+                + "   - Ước tính đối tượng đã xử lý     : %,d đối tượng (Object Pool & Flyweight Active)%n"
+                + "   - Hoạt động Garbage Collection    : %d lần thu gom (Tổng dừng: %d ms)%n"
+                + "   - Tỷ lệ chi phí thời gian GC      : %.2f%% tổng thời gian CPU%n"
+                + "   - Thời gian xử lý TB/Checkpoint   : %.2f ms/checkpoint%n"
+                + "--------------------------------------------------------------------------------%n"
+                + "3. KẾT QUẢ KHAI PHÁ ĐỘ LỢI CAO (HUI):%n"
+                + "   - Số tập mục HUI phân biệt        : %,d tập mục duy nhất%n"
+                + "   - Tổng số lượt HUI phát hiện      : %,d lượt%n"
+                + "   - Số HUI trung bình / Checkpoint  : %.1f itemsets%n"
+                + "   - Số HUI lớn nhất tại Checkpoint  : %,d itemsets%n"
+                + "   - Top HUI có độ lợi cao nhất      : %s (Utility: %.2f)%n"
+                + "--------------------------------------------------------------------------------%n"
+                + "4. GIÁM SÁT TRÔI DẠT (CONCEPT DRIFT):%n"
+                + "   - Tổng số Checkpoint đã tạo       : %,d%n"
+                + "   - Số lần phát hiện Global Drift   : %,d lần%n"
+                + "   - Số lần phát hiện Local Drift    : %,d lần%n"
+                + "   - Tần suất xuất hiện Trôi dạt     : %.1f%%%n"
+                + "   - Khoảng cách DIS_HS trung bình   : %.4f%n"
+                + "   - Khoảng cách DIS_HS đỉnh điểm    : %.4f%n"
+                + "--------------------------------------------------------------------------------%n"
+                + "Trạng thái thực thi hiện tại: %s%n"
+                + "================================================================================%n",
+                dataset, minutil, interval, window, alpha, maxLen,
+                totalTx, elapsedSec, avgTps, peakTps,
+                currentRamMb, peakRamMb, maxRamMb,
+                totalAllocatedObjects,
+                gcCount, gcTimeMs, gcOverheadPct, avgCpMs,
+                distinctHuis, totalHuis, avgHuiPerCp, maxHuiPerCp,
+                topItemset, topUtility,
+                totalCp, gDrift, lDrift, driftRate,
+                avgDisHs, maxDisHs,
+                executionStatus
+        ));
     }
 
     private void onValidateDataset() {
@@ -726,10 +1021,66 @@ public class HUDD_TDS_GUI extends JFrame {
         processLogArea.setText("");
         currentProcessLogFile = null;
         currentCheckpointHistoryFile = null;
+
+        if (summaryChartsPanel != null) {
+            summaryChartsPanel.reset();
+        }
+        System.gc();
+    }
+
+    private void onCleanMemory() {
+        if (currentWorker != null && !currentWorker.isDone() && !currentWorker.isCancelled()) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Quá trình phát luồng đang diễn ra. Bạn có chắc muốn kích hoạt Garbage Collection ngay bây giờ?\n(Có thể làm gián đoạn nhẹ tốc độ xử lý)",
+                    "Xác nhận Dọn RAM", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        Runtime rt = Runtime.getRuntime();
+        double beforeMb = (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0);
+
+        System.gc();
+        try {
+            Thread.sleep(150);
+        } catch (InterruptedException ignored) {}
+        System.gc();
+
+        double afterMb = (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0);
+        double freedMb = Math.max(0.0, beforeMb - afterMb);
+
+        updateSummaryStatsPreview();
+
+        JOptionPane.showMessageDialog(this,
+                String.format(Locale.US,
+                        "=== THU GOM RÁC JVM THÀNH CÔNG ===\n\n"
+                                + "• RAM trước khi dọn: %.2f MB\n"
+                                + "• RAM sau khi dọn  : %.2f MB\n"
+                                + "• Đã giải phóng    : %.2f MB\n\n"
+                                + "Ghi chú: Bộ nhớ Heap đã được chuẩn hóa về mức tối thiểu.",
+                        beforeMb, afterMb, freedMb),
+                "Dọn dẹp Bộ nhớ", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void onShowExportMenu() {
         JPopupMenu menu = new JPopupMenu();
+
+        JMenuItem itemExportFullHtml = new JMenuItem("🌐 Xuất Báo cáo Toàn diện (HTML + Toàn bộ Biểu đồ) ⭐");
+        itemExportFullHtml.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        itemExportFullHtml.setForeground(new Color(37, 99, 235));
+        itemExportFullHtml.addActionListener(e -> exportFullHtmlReport());
+        menu.add(itemExportFullHtml);
+
+        JMenuItem itemExportCurrentChart = new JMenuItem("🖼 Lưu ảnh Biểu đồ hiện tại (PNG)");
+        itemExportCurrentChart.addActionListener(e -> ReportExporter.exportCurrentChartImage(this, chartPanel));
+        menu.add(itemExportCurrentChart);
+
+        JMenuItem itemExportAllCharts = new JMenuItem("📁 Xuất toàn bộ Biểu đồ ra thư mục ảnh (PNG)");
+        itemExportAllCharts.addActionListener(e -> ReportExporter.exportAllChartsToImages(this, chartPanel, summaryChartsPanel));
+        menu.add(itemExportAllCharts);
+
+        menu.addSeparator();
 
         JMenuItem itemExportHui = new JMenuItem("Xuất Nhật ký HUI (CSV)");
         itemExportHui.addActionListener(e -> exportHuiToCsv());
@@ -752,6 +1103,28 @@ public class HUDD_TDS_GUI extends JFrame {
         menu.add(itemExportCheckpointHistory);
 
         menu.show(btnExport, 0, btnExport.getHeight());
+    }
+
+    private void exportFullHtmlReport() {
+        String selected = (String) cbDatasets.getSelectedItem();
+        if (selected == null) selected = "Running Example (Mẫu)";
+        String[] kpis = new String[]{
+                lblTabKpiTime.getText(),
+                lblTabKpiThroughput.getText(),
+                lblTabKpiRam.getText(),
+                lblTabKpiAllocated.getText(),
+                lblTabKpiHui.getText(),
+                lblTabKpiDriftRate.getText()
+        };
+        ReportExporter.exportFullHtmlReport(
+                this,
+                selected,
+                kpis,
+                statsTableModel,
+                summaryStatsArea.getText(),
+                chartPanel,
+                summaryChartsPanel
+        );
     }
 
     private void exportHuiToCsv() {
@@ -917,6 +1290,36 @@ public class HUDD_TDS_GUI extends JFrame {
 
         private long startTimeMs = 0;
         private int totalProcessedTransactions = 0;
+        private long startGcCount = 0;
+        private long startGcTime = 0;
+        private double peakRamUsageMb = 0.0;
+        private int peakThroughputTps = 0;
+        private final Set<String> distinctHuiPatterns = new HashSet<>();
+        private int totalHuiOccurrences = 0;
+        private int maxHuiInSingleCheckpoint = 0;
+        private double totalDisHsSum = 0.0;
+        private double maxDisHsSeen = 0.0;
+        private String topHuiItemset = "N/A";
+        private double topHuiUtility = 0.0;
+        private long totalAllocatedObjects = 0L;
+
+        private long getGcCount() {
+            long count = 0;
+            for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+                long c = gc.getCollectionCount();
+                if (c > 0) count += c;
+            }
+            return count;
+        }
+
+        private long getGcTime() {
+            long time = 0;
+            for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+                long t = gc.getCollectionTime();
+                if (t > 0) time += t;
+            }
+            return time;
+        }
 
         public SimulationWorker(String datasetName, double minutil, int interval, int windowSize, double alpha,
                                 int maxPattern, int maxTxLimit, boolean traceEachTransaction,
@@ -979,6 +1382,10 @@ public class HUDD_TDS_GUI extends JFrame {
         @Override
         protected Void doInBackground() throws Exception {
             this.startTimeMs = System.currentTimeMillis();
+            this.startGcCount = getGcCount();
+            this.startGcTime = getGcTime();
+            Runtime rtInit = Runtime.getRuntime();
+            this.peakRamUsageMb = (rtInit.totalMemory() - rtInit.freeMemory()) / (1024.0 * 1024.0);
             File logDirectory = logFile.getParentFile();
             if (logDirectory != null && !logDirectory.exists() && !logDirectory.mkdirs()) {
                 throw new IOException("Không thể tạo thư mục log: " + logDirectory.getAbsolutePath());
@@ -1063,6 +1470,7 @@ public class HUDD_TDS_GUI extends JFrame {
                     tid++;
                     totalProcessedTransactions++;
                     Transaction tx = simulationService.processLine(line, tid);
+                    totalAllocatedObjects += 1 + (tx != null ? tx.getElements().size() : 0);
                     if (traceEachTransaction || tid == 1 || tid % interval == 0) {
                         trace(String.format(Locale.US, "[PARSE] TID=%d hợp lệ; items=%d, TU=%.4f",
                                 tid, tx.getElements().size(), tx.getTransactionUtility()));
@@ -1139,6 +1547,28 @@ public class HUDD_TDS_GUI extends JFrame {
                 }
                 if (event.getType() == EventType.CHECKPOINT_CREATED) {
                     Checkpoint cp = event.getCheckpoint();
+                    Runtime rt = Runtime.getRuntime();
+                    double curRamMb = (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0);
+                    long elapsed = Math.max(1, System.currentTimeMillis() - startTimeMs);
+                    int currentTxPerSec = (int) ((totalProcessedTransactions * 1000.0) / elapsed);
+                    cp.setRamUsageMb(curRamMb);
+                    cp.setThroughputTxPerSec(currentTxPerSec);
+
+                    peakRamUsageMb = Math.max(peakRamUsageMb, curRamMb);
+                    peakThroughputTps = Math.max(peakThroughputTps, currentTxPerSec);
+                    totalDisHsSum += cp.getGlobalDistance();
+                    maxDisHsSeen = Math.max(maxDisHsSeen, cp.getGlobalDistance());
+                    maxHuiInSingleCheckpoint = Math.max(maxHuiInSingleCheckpoint, cp.getHuis().size());
+                    totalHuiOccurrences += cp.getHuis().size();
+
+                    for (HighUtilityItemset hui : cp.getHuis()) {
+                        distinctHuiPatterns.add(hui.getItems().toString());
+                        if (hui.getTotalUtility() > topHuiUtility) {
+                            topHuiUtility = hui.getTotalUtility();
+                            topHuiItemset = hui.getItems().toString();
+                        }
+                    }
+
                     retainedUiCheckpointTids.addLast(cp.getTid());
                     while (retainedUiCheckpointTids.size() > HUDD_TDS.MAX_RETAINED_CHECKPOINTS) {
                         int expiredTid = retainedUiCheckpointTids.removeFirst();
@@ -1218,26 +1648,24 @@ public class HUDD_TDS_GUI extends JFrame {
                     ));
 
                     // Cập nhật bảng tổng quan thống kê
-                    long elapsed = Math.max(1, System.currentTimeMillis() - startTimeMs);
-                    summaryStatsArea.setText(String.format(Locale.US,
-                            "=== BÁO CÁO TỔNG HỢP TIẾN TRÌNH HUDD-TDS ===%n"
-                                    + "Dataset: %s%n"
-                                    + "MinUtil: %.2f | Interval: %d | Window: %d | Alpha: %.2f | Max Len: %d%n"
-                                    + "--------------------------------------------------------%n"
-                                    + "Tổng số Giao dịch đã xử lý: %,d%n"
-                                    + "Tổng số Checkpoint: %,d%n"
-                                    + "Số lần phát hiện Global Drift: %,d%n"
-                                    + "Số lần phát hiện Local Drift: %,d%n"
-                                    + "Thời gian thực thi: %.2f giây%n"
-                                    + "Tốc độ trung bình: %,d tx/giây%n"
-                                    + "Trạng thái hiện tại: %s%n",
+                    long curGcCount = getGcCount() - startGcCount;
+                    long curGcTime = getGcTime() - startGcTime;
+                    double gcOverheadPct = Math.min(100.0, (curGcTime * 100.0) / elapsed);
+                    double maxRamMb = rt.maxMemory() / (1024.0 * 1024.0);
+
+                    updateSummaryDashboard(
                             datasetName, minutil, interval, windowSize, alpha, maxPattern,
                             totalProcessedTransactions, totalCheckpointsCount,
                             totalGlobalDriftsCount, totalLocalDriftsCount,
                             elapsed / 1000.0,
-                            (int) ((totalProcessedTransactions * 1000.0) / elapsed),
+                            currentTxPerSec, peakThroughputTps,
+                            curRamMb, peakRamUsageMb, maxRamMb,
+                            curGcCount, curGcTime, gcOverheadPct, totalAllocatedObjects,
+                            distinctHuiPatterns.size(), totalHuiOccurrences, maxHuiInSingleCheckpoint,
+                            (totalCheckpointsCount > 0 ? (totalDisHsSum / totalCheckpointsCount) : 0.0),
+                            maxDisHsSeen, topHuiItemset, topHuiUtility,
                             (paused ? "ĐANG TẠM DỪNG" : "ĐANG CHẠY")
-                    ));
+                    );
                 }
                 } finally {
                     uiQueueSlots.release();
@@ -1282,25 +1710,28 @@ public class HUDD_TDS_GUI extends JFrame {
             }
 
             long elapsed = Math.max(1, System.currentTimeMillis() - startTimeMs);
-            summaryStatsArea.setText(String.format(Locale.US,
-                    "=== BÁO CÁO KẾT THÚC THỰC NGHIỆM HUDD-TDS ===%n"
-                            + "Dataset: %s%n"
-                            + "MinUtil: %.2f | Interval: %d | Window: %d | Alpha: %.2f | Max Len: %d%n"
-                            + "--------------------------------------------------------%n"
-                            + "Tổng số Giao dịch: %,d%n"
-                            + "Tổng số Checkpoint: %,d%n"
-                            + "Số lần phát hiện Global Drift: %,d%n"
-                            + "Số lần phát hiện Local Drift: %,d%n"
-                            + "Tổng thời gian: %.2f giây%n"
-                            + "Tốc độ thông lượng: %,d tx/giây%n"
-                                + "Trạng thái: %s%n",
+            int avgTps = (int) ((totalProcessedTransactions * 1000.0) / elapsed);
+            Runtime rt = Runtime.getRuntime();
+            double curRamMb = (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0);
+            double maxRamMb = rt.maxMemory() / (1024.0 * 1024.0);
+            long curGcCount = getGcCount() - startGcCount;
+            long curGcTime = getGcTime() - startGcTime;
+            double gcOverheadPct = Math.min(100.0, (curGcTime * 100.0) / elapsed);
+            String statusStr = completed ? "HOÀN TẤT THÀNH CÔNG ✓" : (isCancelled() ? "ĐÃ DỪNG" : "KẾT THÚC DO LỖI");
+
+            updateSummaryDashboard(
                     datasetName, minutil, interval, windowSize, alpha, maxPattern,
                     totalProcessedTransactions, totalCheckpointsCount,
                     totalGlobalDriftsCount, totalLocalDriftsCount,
                     elapsed / 1000.0,
-                            (int) ((totalProcessedTransactions * 1000.0) / elapsed),
-                            completed ? "HOÀN TẤT THÀNH CÔNG ✓" : (isCancelled() ? "ĐÃ DỪNG" : "KẾT THÚC DO LỖI")
-            ));
+                    avgTps, peakThroughputTps,
+                    curRamMb, peakRamUsageMb, maxRamMb,
+                    curGcCount, curGcTime, gcOverheadPct, totalAllocatedObjects,
+                    distinctHuiPatterns.size(), totalHuiOccurrences, maxHuiInSingleCheckpoint,
+                    (totalCheckpointsCount > 0 ? (totalDisHsSum / totalCheckpointsCount) : 0.0),
+                    maxDisHsSeen, topHuiItemset, topHuiUtility,
+                    statusStr
+            );
         }
     }
 
