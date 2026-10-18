@@ -105,6 +105,7 @@ public class HUDD_TDS_GUI extends JFrame {
     private final DefaultTableModel statsTableModel;
     private final JTable statsTable;
     private final JTextArea summaryStatsArea;
+    private final SummaryChartsPanel summaryChartsPanel;
 
     // Đồ thị trực quan & Chi tiết tính toán
     private final ChartPanel chartPanel;
@@ -416,15 +417,23 @@ public class HUDD_TDS_GUI extends JFrame {
         statsTableContainer.setBorder(BorderFactory.createTitledBorder("Bảng số liệu phân nhóm chi tiết"));
         statsTableContainer.add(new JScrollPane(statsTable), BorderLayout.CENTER);
 
-        // 3. Khung báo cáo văn bản + Nút tiện ích (Phải)
+        // 3. Khung bên phải: TabbedPane chứa "Đồ thị phân tích" & "Báo cáo văn bản"
+        summaryChartsPanel = new SummaryChartsPanel();
+
         JPanel statsReportContainer = new JPanel(new BorderLayout(4, 4));
-        statsReportContainer.setBorder(BorderFactory.createTitledBorder("Báo cáo tổng kết thực nghiệm"));
         summaryStatsArea = new JTextArea();
         summaryStatsArea.setEditable(false);
         summaryStatsArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         statsReportContainer.add(new JScrollPane(summaryStatsArea), BorderLayout.CENTER);
 
         JPanel statsToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        JButton btnExportHtml = new JButton("🌐 Xuất Báo cáo HTML (Kèm biểu đồ)");
+        btnExportHtml.setBackground(new Color(37, 99, 235));
+        btnExportHtml.setForeground(Color.WHITE);
+        btnExportHtml.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnExportHtml.setToolTipText("Xuất toàn bộ số liệu và 6 biểu đồ vào 1 tệp HTML dashboard, sẵn sàng in PDF hoặc chia sẻ");
+        btnExportHtml.addActionListener(e -> exportFullHtmlReport());
+
         JButton btnCopySummary = new JButton("📋 Sao chép báo cáo");
         btnCopySummary.setToolTipText("Sao chép nội dung báo cáo vào bộ nhớ tạm (Clipboard)");
         JButton btnSaveSummary = new JButton("💾 Xuất file TXT");
@@ -441,12 +450,17 @@ public class HUDD_TDS_GUI extends JFrame {
         btnSaveSummary.addActionListener(e -> exportSummaryReport());
         btnRefreshSummary.addActionListener(e -> updateSummaryStatsPreview());
 
+        statsToolbar.add(btnExportHtml);
         statsToolbar.add(btnCopySummary);
         statsToolbar.add(btnSaveSummary);
         statsToolbar.add(btnRefreshSummary);
         statsReportContainer.add(statsToolbar, BorderLayout.SOUTH);
 
-        JSplitPane summarySplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statsTableContainer, statsReportContainer);
+        JTabbedPane summaryRightTabbedPane = new JTabbedPane();
+        summaryRightTabbedPane.addTab("📊 Đồ thị phân tích & Tài nguyên", summaryChartsPanel);
+        summaryRightTabbedPane.addTab("📋 Báo cáo tổng kết (Text)", statsReportContainer);
+
+        JSplitPane summarySplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statsTableContainer, summaryRightTabbedPane);
         summarySplitPane.setResizeWeight(0.50);
         summaryDashboardPanel.add(summarySplitPane, BorderLayout.CENTER);
 
@@ -470,8 +484,14 @@ public class HUDD_TDS_GUI extends JFrame {
 
         JPanel chartControlBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
         chartControlBar.add(new JLabel("Chỉ số:"));
-        cbChartMetric = new JComboBox<>(new String[]{"Khoảng cách toàn cục (DISHS)", "Số lượng HUI"});
-        cbChartMetric.setPreferredSize(new Dimension(190, 24));
+        cbChartMetric = new JComboBox<>(new String[]{
+            "Khoảng cách toàn cục (DISHS)",
+            "Số lượng HUI (Đường)",
+            "Số lượng HUI (Cột phân màu)",
+            "Tiêu thụ RAM (MB)",
+            "Thông lượng (tx/giây)"
+        });
+        cbChartMetric.setPreferredSize(new Dimension(215, 24));
         chartControlBar.add(cbChartMetric);
 
         chartContainer.add(chartControlBar, BorderLayout.NORTH);
@@ -521,10 +541,12 @@ public class HUDD_TDS_GUI extends JFrame {
         // Đổi chế độ vẽ trên ChartPanel
         cbChartMetric.addActionListener(e -> {
             int idx = cbChartMetric.getSelectedIndex();
-            if (idx == 0) {
-                chartPanel.setMetricMode(ChartPanel.MetricMode.GLOBAL_DISTANCE);
-            } else {
-                chartPanel.setMetricMode(ChartPanel.MetricMode.HUI_COUNT);
+            switch (idx) {
+                case 0 -> chartPanel.setMetricMode(ChartPanel.MetricMode.GLOBAL_DISTANCE);
+                case 1 -> chartPanel.setMetricMode(ChartPanel.MetricMode.HUI_COUNT);
+                case 2 -> chartPanel.setMetricMode(ChartPanel.MetricMode.BAR_HUI_COUNT);
+                case 3 -> chartPanel.setMetricMode(ChartPanel.MetricMode.RAM_USAGE);
+                case 4 -> chartPanel.setMetricMode(ChartPanel.MetricMode.THROUGHPUT);
             }
         });
 
@@ -756,6 +778,16 @@ public class HUDD_TDS_GUI extends JFrame {
         lblTabKpiHui.setText(String.format(Locale.US, "%,d patterns", distinctHuis));
         lblTabKpiDriftRate.setText(String.format(Locale.US, "%.1f%% (G:%d, L:%d)", driftRate, gDrift, lDrift));
 
+        // Cập nhật Đồ thị phân tích & Tài nguyên
+        if (summaryChartsPanel != null) {
+            summaryChartsPanel.updateData(
+                    totalCp, gDrift, lDrift,
+                    currentRamMb, peakRamMb, maxRamMb,
+                    avgTps, peakTps,
+                    gcCount, gcTimeMs
+            );
+        }
+
         // Cập nhật bảng phân nhóm chi tiết
         statsTableModel.setRowCount(0);
         statsTableModel.addRow(new Object[]{"▶ I. CẤU HÌNH & KIẾN TRÚC MÔ HÌNH", "--------------------------------------"});
@@ -978,6 +1010,9 @@ public class HUDD_TDS_GUI extends JFrame {
         progressBar.setValue(0);
         progressBar.setString("Sẵn sàng phát luồng");
         calculationDetails.setText("Hệ thống đã đặt lại trạng thái ban đầu.");
+        if (summaryChartsPanel != null) {
+            summaryChartsPanel.reset();
+        }
         updateSummaryStatsPreview();
         processLogArea.setText("");
         currentProcessLogFile = null;
@@ -985,6 +1020,22 @@ public class HUDD_TDS_GUI extends JFrame {
 
     private void onShowExportMenu() {
         JPopupMenu menu = new JPopupMenu();
+
+        JMenuItem itemExportFullHtml = new JMenuItem("🌐 Xuất Báo cáo Toàn diện (HTML + Toàn bộ Biểu đồ) ⭐");
+        itemExportFullHtml.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        itemExportFullHtml.setForeground(new Color(37, 99, 235));
+        itemExportFullHtml.addActionListener(e -> exportFullHtmlReport());
+        menu.add(itemExportFullHtml);
+
+        JMenuItem itemExportCurrentChart = new JMenuItem("🖼 Lưu ảnh Biểu đồ hiện tại (PNG)");
+        itemExportCurrentChart.addActionListener(e -> ReportExporter.exportCurrentChartImage(this, chartPanel));
+        menu.add(itemExportCurrentChart);
+
+        JMenuItem itemExportAllCharts = new JMenuItem("📁 Xuất toàn bộ Biểu đồ ra thư mục ảnh (PNG)");
+        itemExportAllCharts.addActionListener(e -> ReportExporter.exportAllChartsToImages(this, chartPanel, summaryChartsPanel));
+        menu.add(itemExportAllCharts);
+
+        menu.addSeparator();
 
         JMenuItem itemExportHui = new JMenuItem("Xuất Nhật ký HUI (CSV)");
         itemExportHui.addActionListener(e -> exportHuiToCsv());
@@ -1003,6 +1054,27 @@ public class HUDD_TDS_GUI extends JFrame {
         menu.add(itemExportProcessLog);
 
         menu.show(btnExport, 0, btnExport.getHeight());
+    }
+
+    private void exportFullHtmlReport() {
+        String selected = (String) cbDatasets.getSelectedItem();
+        if (selected == null) selected = "Running Example (Mẫu)";
+        String[] kpis = new String[]{
+                lblTabKpiTime.getText(),
+                lblTabKpiThroughput.getText(),
+                lblTabKpiRam.getText(),
+                lblTabKpiHui.getText(),
+                lblTabKpiDriftRate.getText()
+        };
+        ReportExporter.exportFullHtmlReport(
+                this,
+                selected,
+                kpis,
+                statsTableModel,
+                summaryStatsArea.getText(),
+                chartPanel,
+                summaryChartsPanel
+        );
     }
 
     private void exportHuiToCsv() {
@@ -1328,6 +1400,9 @@ public class HUDD_TDS_GUI extends JFrame {
                     peakMemoryBytes = Math.max(peakMemoryBytes, usedMem);
 
                     if (cp != null) {
+                        double curRamMb = usedMem / (1024.0 * 1024.0);
+                        cp.setRamUsageMb(curRamMb);
+                        cp.setThroughputTxPerSec(currentTxPerSec);
                         checkpointCount++;
                         totalHuiDetections += cp.getHuis().size();
                         maxHuiPerCp = Math.max(maxHuiPerCp, cp.getHuis().size());

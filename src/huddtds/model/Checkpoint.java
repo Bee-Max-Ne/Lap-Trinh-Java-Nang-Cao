@@ -55,7 +55,29 @@ public class Checkpoint {
      * Gán khoảng cách toàn cục cho checkpoint.
      * @param globalDistance khoảng cách mới
      */
+    /** Lưu lượng RAM (MB) sử dụng tại thời điểm checkpoint */
+    private double ramUsageMb;
+
+    /** Tốc độ xử lý (tx/s) tại thời điểm checkpoint */
+    private int throughputTxPerSec;
+
     public void setGlobalDistance(double globalDistance) {
         this.globalDistance = globalDistance;
+    }
+
+    public double getRamUsageMb() {
+        return ramUsageMb;
+    }
+
+    public void setRamUsageMb(double ramUsageMb) {
+        this.ramUsageMb = ramUsageMb;
+    }
+
+    public int getThroughputTxPerSec() {
+        return throughputTxPerSec;
+    }
+
+    public void setThroughputTxPerSec(int throughputTxPerSec) {
+        this.throughputTxPerSec = throughputTxPerSec;
     }
 }

@@ -23,7 +23,10 @@ public class ChartPanel extends JPanel {
 
     public enum MetricMode {
         GLOBAL_DISTANCE("Khoảng cách toàn cục (DISHS)"),
-        HUI_COUNT("Số lượng HUI");
+        HUI_COUNT("Số lượng HUI (Đường)"),
+        BAR_HUI_COUNT("Số lượng HUI (Cột phân màu Drift)"),
+        RAM_USAGE("Tiêu thụ RAM (MB)"),
+        THROUGHPUT("Thông lượng (tx/giây)");
 
         private final String title;
         MetricMode(String title) {
@@ -147,8 +150,12 @@ public class ChartPanel extends JPanel {
     }
 
     private synchronized double getMetricValue(Checkpoint cp) {
-        if (metricMode == MetricMode.HUI_COUNT) {
+        if (metricMode == MetricMode.HUI_COUNT || metricMode == MetricMode.BAR_HUI_COUNT) {
             return cp.getHuis() != null ? cp.getHuis().size() : 0.0;
+        } else if (metricMode == MetricMode.RAM_USAGE) {
+            return cp.getRamUsageMb();
+        } else if (metricMode == MetricMode.THROUGHPUT) {
+            return cp.getThroughputTxPerSec();
         }
         return cp.getGlobalDistance();
     }
@@ -192,7 +199,7 @@ public class ChartPanel extends JPanel {
         int width = getWidth();
         int height = getHeight();
 
-        int paddingLeft = 60;
+        int paddingLeft = 65;
         int paddingTop = 35;
         int paddingRight = 25;
         int paddingBottom = 48;
@@ -207,10 +214,10 @@ public class ChartPanel extends JPanel {
         // Tiêu đề đồ thị
         g2.setColor(new Color(30, 41, 59));
         g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        g2.drawString(metricMode.getTitle() + " (log1p)", paddingLeft, 22);
+        g2.drawString(metricMode == MetricMode.GLOBAL_DISTANCE ? metricMode.getTitle() + " (log scale)" : metricMode.getTitle(), paddingLeft, 22);
 
         // Chú giải (Legend) ở góc trên phải
-        drawLegend(g2, width - paddingRight - 140, 10);
+        drawLegend(g2, width - paddingRight, 12);
 
         List<Checkpoint> snapshot;
         Set<Integer> driftSnapshot;
@@ -276,9 +283,16 @@ public class ChartPanel extends JPanel {
             g2.drawLine(paddingLeft, y, paddingLeft + plotWidth, y);
 
             g2.setColor(new Color(100, 116, 139));
-            String label = (metricMode == MetricMode.HUI_COUNT)
-                    ? String.format(Locale.US, "%.0f", val)
-                    : formatYAxisValue(val);
+            String label;
+            if (metricMode == MetricMode.HUI_COUNT || metricMode == MetricMode.BAR_HUI_COUNT) {
+                label = String.format(Locale.US, "%.0f", val);
+            } else if (metricMode == MetricMode.RAM_USAGE) {
+                label = String.format(Locale.US, "%.1f MB", val);
+            } else if (metricMode == MetricMode.THROUGHPUT) {
+                label = String.format(Locale.US, "%,.0f", val);
+            } else {
+                label = formatYAxisValue(val);
+            }
             g2.drawString(label, 6, y + 4);
         }
 
@@ -294,27 +308,95 @@ public class ChartPanel extends JPanel {
             yCoords[i] = paddingTop + plotHeight - (int) (normalized * plotHeight);
         }
 
-        // Vẽ gradient diện tích dưới đường line
-        if (n > 1) {
-            Path2D area = new Path2D.Double();
-            area.moveTo(xCoords[0], paddingTop + plotHeight);
+        if (metricMode == MetricMode.BAR_HUI_COUNT) {
+            // Vẽ biểu đồ cột
+            int barWidth = Math.max(3, (plotWidth / Math.max(1, n)) - 2);
             for (int i = 0; i < n; i++) {
-                area.lineTo(xCoords[i], yCoords[i]);
+                int x = xCoords[i] - barWidth / 2;
+                int y = yCoords[i];
+                int h = Math.max(2, paddingTop + plotHeight - y);
+
+                boolean isDrift = driftSnapshot.contains(snapshot.get(i).getTid());
+
+                if (isDrift) {
+                    g2.setColor(new Color(239, 68, 68, 190));
+                } else {
+                    g2.setColor(new Color(59, 130, 246, 190));
+                }
+                g2.fillRect(x, y, barWidth, h);
+
+                if (isDrift) {
+                    g2.setColor(new Color(220, 38, 38));
+                } else {
+                    g2.setColor(new Color(37, 99, 235));
+                }
+                g2.drawRect(x, y, barWidth, h);
             }
-            area.lineTo(xCoords[n - 1], paddingTop + plotHeight);
-            area.closePath();
+        } else {
+            // Vẽ gradient diện tích dưới đường line
+            if (n > 1) {
+                Path2D area = new Path2D.Double();
+                area.moveTo(xCoords[0], paddingTop + plotHeight);
+                for (int i = 0; i < n; i++) {
+                    area.lineTo(xCoords[i], yCoords[i]);
+                }
+                area.lineTo(xCoords[n - 1], paddingTop + plotHeight);
+                area.closePath();
 
-            Color startCol = new Color(59, 130, 246, 75);
-            Color endCol = new Color(59, 130, 246, 5);
-            g2.setPaint(new GradientPaint(0, paddingTop, startCol, 0, paddingTop + plotHeight, endCol));
-            g2.fill(area);
-        }
+                Color startCol, endCol;
+                if (metricMode == MetricMode.RAM_USAGE) {
+                    startCol = new Color(16, 185, 129, 85); // Xanh ngọc
+                    endCol = new Color(16, 185, 129, 5);
+                } else if (metricMode == MetricMode.THROUGHPUT) {
+                    startCol = new Color(147, 51, 234, 85); // Tím
+                    endCol = new Color(147, 51, 234, 5);
+                } else {
+                    startCol = new Color(59, 130, 246, 75); // Xanh dương
+                    endCol = new Color(59, 130, 246, 5);
+                }
+                g2.setPaint(new GradientPaint(0, paddingTop, startCol, 0, paddingTop + plotHeight, endCol));
+                g2.fill(area);
+            }
 
-        // Vẽ đường nối
-        g2.setColor(new Color(37, 99, 235));
-        g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        for (int i = 0; i < n - 1; i++) {
-            g2.drawLine(xCoords[i], yCoords[i], xCoords[i + 1], yCoords[i + 1]);
+            // Vẽ đường nối
+            if (metricMode == MetricMode.RAM_USAGE) {
+                g2.setColor(new Color(5, 150, 105)); // Xanh ngọc đậm
+            } else if (metricMode == MetricMode.THROUGHPUT) {
+                g2.setColor(new Color(126, 34, 206)); // Tím đậm
+            } else {
+                g2.setColor(new Color(37, 99, 235));
+            }
+            g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            for (int i = 0; i < n - 1; i++) {
+                g2.drawLine(xCoords[i], yCoords[i], xCoords[i + 1], yCoords[i + 1]);
+            }
+
+            // Vạch đứt đánh dấu Đỉnh (Peak) cho RAM và Thông lượng
+            if (metricMode == MetricMode.RAM_USAGE || metricMode == MetricMode.THROUGHPUT) {
+                int peakIdx = -1;
+                double peakVal = -1.0;
+                for (int i = 0; i < n; i++) {
+                    double v = getMetricValue(snapshot.get(i));
+                    if (v > peakVal) {
+                        peakVal = v;
+                        peakIdx = i;
+                    }
+                }
+                if (peakIdx >= 0 && peakVal > 0) {
+                    int peakY = yCoords[peakIdx];
+                    g2.setColor(new Color(239, 68, 68, 140));
+                    g2.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{4, 4}, 0));
+                    g2.drawLine(paddingLeft, peakY, paddingLeft + plotWidth, peakY);
+
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+                    g2.setColor(new Color(220, 38, 38));
+                    String peakStr = (metricMode == MetricMode.RAM_USAGE)
+                            ? String.format(Locale.US, "Đỉnh: %.1f MB", peakVal)
+                            : String.format(Locale.US, "Đỉnh: %,d tx/s", (int) peakVal);
+                    g2.drawString(peakStr, paddingLeft + plotWidth - g2.getFontMetrics().stringWidth(peakStr) - 4, peakY - 3);
+                    g2.setStroke(new BasicStroke(1.0f));
+                }
+            }
         }
 
         // Vẽ các điểm checkpoint và nhãn trục X
@@ -334,20 +416,47 @@ public class ChartPanel extends JPanel {
                         paddingTop + plotHeight + 18);
             }
 
-            // Điểm tròn
-            if (isDrift) {
-                // Điểm Drift màu đỏ nổi bật với quầng cảnh báo
-                g2.setColor(new Color(239, 68, 68, 90));
-                g2.fillOval(x - 8, y - 8, 16, 16);
-                g2.setColor(new Color(220, 38, 38));
-                g2.fillOval(x - 5, y - 5, 10, 10);
-                g2.setColor(Color.WHITE);
-                g2.fillOval(x - 2, y - 2, 4, 4);
-            } else {
-                g2.setColor(Color.WHITE);
-                g2.fillOval(x - 4, y - 4, 8, 8);
-                g2.setColor(new Color(37, 99, 235));
-                g2.fillOval(x - 3, y - 3, 6, 6);
+            // Vẽ điểm mốc trực quan (Tự động thích ứng theo mật độ điểm để chống rối mắt / đè lấn)
+            if (metricMode != MetricMode.BAR_HUI_COUNT) {
+                boolean isDense = (n > 35);
+                boolean isUltraDense = (n > 85);
+
+                if (isDrift) {
+                    if (isUltraDense) {
+                        // Mật độ rất dày (> 85 điểm): Chấm đỏ gọn 4px, không vẽ quầng halo lớn
+                        g2.setColor(new Color(220, 38, 38));
+                        g2.fillOval(x - 2, y - 2, 4, 4);
+                    } else if (isDense) {
+                        // Mật độ dày vừa (35 - 85 điểm): Chấm đỏ 6px có tâm trắng
+                        g2.setColor(new Color(220, 38, 38));
+                        g2.fillOval(x - 3, y - 3, 6, 6);
+                        g2.setColor(Color.WHITE);
+                        g2.fillOval(x - 1, y - 1, 2, 2);
+                    } else {
+                        // Mật độ thưa (<= 35 điểm): Giữ quầng phát sáng nổi bật
+                        g2.setColor(new Color(239, 68, 68, 90));
+                        g2.fillOval(x - 7, y - 7, 14, 14);
+                        g2.setColor(new Color(220, 38, 38));
+                        g2.fillOval(x - 4, y - 4, 8, 8);
+                        g2.setColor(Color.WHITE);
+                        g2.fillOval(x - 2, y - 2, 4, 4);
+                    }
+                } else {
+                    // Điểm ổn định: Khi dữ liệu quá dày (> 85 điểm), ẩn bớt để đường xu hướng (line) mượt và rõ nét
+                    if (!isUltraDense) {
+                        int r = isDense ? 2 : 3;
+                        g2.setColor(Color.WHITE);
+                        g2.fillOval(x - r - 1, y - r - 1, (r + 1) * 2, (r + 1) * 2);
+                        if (metricMode == MetricMode.RAM_USAGE) {
+                            g2.setColor(new Color(5, 150, 105));
+                        } else if (metricMode == MetricMode.THROUGHPUT) {
+                            g2.setColor(new Color(126, 34, 206));
+                        } else {
+                            g2.setColor(new Color(37, 99, 235));
+                        }
+                        g2.fillOval(x - r, y - r, r * 2, r * 2);
+                    }
+                }
             }
         }
 
@@ -369,56 +478,144 @@ public class ChartPanel extends JPanel {
             g2.setColor(Color.WHITE);
             g2.fillOval(hX - 3, hY - 3, 6, 6);
 
-            // Hộp Tooltip
+            // Hộp Tooltip tương thích theo chỉ số
             String line1 = "TID: " + hCp.getTid();
-            String line2 = String.format(Locale.US, "DISHS: %.4f | HUI: %d", hCp.getGlobalDistance(), hCp.getHuis().size());
+            String line2;
+            String line3;
+            String line4;
+            String line5;
             DriftResult driftResult = driftResultSnapshot.get(hCp.getTid());
-            String line3 = isDrift ? "TRÔI DẠT TOÀN CỤC" : "ỔN ĐỊNH";
-            String line4 = driftResult == null
-                    ? (isDrift ? "Phát hiện Trôi dạt Toàn cục" : "Hệ thống trạng thái Ổn định")
-                    : String.format(Locale.US, "|U-V|=%.3g >= epsilon=%.3g",
-                            driftResult.getStatistic(), driftResult.getThreshold());
+
+            if (metricMode == MetricMode.RAM_USAGE) {
+                line2 = String.format(Locale.US, "RAM Heap: %.2f MB", hCp.getRamUsageMb());
+                line3 = String.format(Locale.US, "Tốc độ: %,d tx/s | HUI: %d", hCp.getThroughputTxPerSec(), hCp.getHuis().size());
+                line4 = isDrift ? "MỐC PHÁT HIỆN TRÔI DẠT" : "LUỒNG DỮ LIỆU ỔN ĐỊNH";
+                line5 = String.format(Locale.US, "Khoảng cách DISHS: %.4f", hCp.getGlobalDistance());
+            } else if (metricMode == MetricMode.THROUGHPUT) {
+                line2 = String.format(Locale.US, "Thông lượng: %,d tx/giây", hCp.getThroughputTxPerSec());
+                line3 = String.format(Locale.US, "RAM Heap: %.1f MB | HUI: %d", hCp.getRamUsageMb(), hCp.getHuis().size());
+                line4 = isDrift ? "MỐC PHÁT HIỆN TRÔI DẠT" : "LUỒNG DỮ LIỆU ỔN ĐỊNH";
+                line5 = String.format(Locale.US, "Khoảng cách DISHS: %.4f", hCp.getGlobalDistance());
+            } else if (metricMode == MetricMode.HUI_COUNT || metricMode == MetricMode.BAR_HUI_COUNT) {
+                line2 = String.format(Locale.US, "Số lượng HUI: %d tập mục", hCp.getHuis().size());
+                line3 = String.format(Locale.US, "RAM: %.1f MB | Tốc độ: %,d tx/s", hCp.getRamUsageMb(), hCp.getThroughputTxPerSec());
+                line4 = isDrift ? "MỐC PHÁT HIỆN TRÔI DẠT" : "LUỒNG DỮ LIỆU ỔN ĐỊNH";
+                line5 = String.format(Locale.US, "Khoảng cách DISHS: %.4f", hCp.getGlobalDistance());
+            } else {
+                line2 = String.format(Locale.US, "Khoảng cách DISHS: %.4f", hCp.getGlobalDistance());
+                line3 = String.format(Locale.US, "HUI: %d | RAM: %.1f MB | Tốc độ: %,d tx/s", hCp.getHuis().size(), hCp.getRamUsageMb(), hCp.getThroughputTxPerSec());
+                line4 = isDrift ? "TRÔI DẠT TOÀN CỤC (GLOBAL DRIFT)" : "ỔN ĐỊNH (STABLE)";
+                line5 = driftResult == null
+                        ? (isDrift ? "Phát hiện Trôi dạt Toàn cục" : "Hệ thống trạng thái Ổn định")
+                        : String.format(Locale.US, "|U-V|=%.3g >= epsilon=%.3g",
+                                driftResult.getStatistic(), driftResult.getThreshold());
+            }
 
             g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
             FontMetrics fm = g2.getFontMetrics();
             int boxWidth = Math.max(Math.max(fm.stringWidth(line1), fm.stringWidth(line2)),
-                    Math.max(fm.stringWidth(line3), fm.stringWidth(line4))) + 16;
-            int boxHeight = 66;
+                    Math.max(Math.max(fm.stringWidth(line3), fm.stringWidth(line4)), fm.stringWidth(line5))) + 18;
+            int boxHeight = 84;
             int boxX = Math.min(width - boxWidth - 10, Math.max(10, hX - boxWidth / 2));
-            int boxY = Math.max(paddingTop + 5, hY - boxHeight - 10);
+            int boxY = (hY - boxHeight - 12 < paddingTop) ? (hY + 14) : (hY - boxHeight - 12);
+            if (boxY + boxHeight > height - 10) {
+                boxY = height - boxHeight - 10;
+            }
 
-            g2.setColor(new Color(15, 23, 42, 225));
+            g2.setColor(new Color(15, 23, 42, 235));
             g2.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 8);
             g2.setColor(new Color(51, 65, 85));
             g2.drawRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 8);
 
             g2.setColor(Color.WHITE);
-            g2.drawString(line1, boxX + 8, boxY + 15);
+            g2.drawString(line1, boxX + 9, boxY + 14);
+            g2.setColor(new Color(56, 189, 248));
+            g2.drawString(line2, boxX + 9, boxY + 29);
             g2.setColor(new Color(226, 232, 240));
-            g2.drawString(line2, boxX + 8, boxY + 30);
+            g2.drawString(line3, boxX + 9, boxY + 45);
             g2.setColor(isDrift ? new Color(248, 113, 113) : new Color(74, 222, 128));
-            g2.drawString(line3, boxX + 8, boxY + 44);
-            g2.setColor(new Color(226, 232, 240));
-            g2.drawString(line4, boxX + 8, boxY + 58);
+            g2.drawString(line4, boxX + 9, boxY + 61);
+            g2.setColor(new Color(203, 213, 225));
+            g2.drawString(line5, boxX + 9, boxY + 76);
         }
 
         g2.dispose();
     }
 
-    private void drawLegend(Graphics2D g2, int x, int y) {
+    private void drawLegend(Graphics2D g2, int rightEdgeX, int y) {
         g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        FontMetrics fm = g2.getFontMetrics();
 
-        // Normal
-        g2.setColor(new Color(37, 99, 235));
-        g2.fillOval(x, y + 2, 7, 7);
-        g2.setColor(new Color(71, 85, 105));
-        g2.drawString("Ổn định", x + 11, y + 9);
+        Color normalColor;
+        String normalText;
+        Color driftColor = new Color(220, 38, 38);
+        String driftText;
+        boolean isBar = (metricMode == MetricMode.BAR_HUI_COUNT);
 
-        // Drift
-        g2.setColor(new Color(220, 38, 38));
-        g2.fillOval(x + 65, y + 2, 7, 7);
-        g2.setColor(new Color(71, 85, 105));
-        g2.drawString("Trôi dạt toàn cục", x + 76, y + 9);
+        switch (metricMode) {
+            case GLOBAL_DISTANCE -> {
+                normalColor = new Color(37, 99, 235);
+                normalText = "DISHS (Ổn định)";
+                driftText = "Trôi dạt toàn cục";
+            }
+            case HUI_COUNT -> {
+                normalColor = new Color(37, 99, 235);
+                normalText = "Số lượng HUI";
+                driftText = "Mốc có Drift";
+            }
+            case BAR_HUI_COUNT -> {
+                normalColor = new Color(59, 130, 246);
+                normalText = "HUI khi Ổn định";
+                driftText = "HUI khi Trôi dạt";
+            }
+            case RAM_USAGE -> {
+                normalColor = new Color(5, 150, 105);
+                normalText = "RAM Heap (Ổn định)";
+                driftText = "RAM khi có Drift";
+            }
+            case THROUGHPUT -> {
+                normalColor = new Color(126, 34, 206);
+                normalText = "Tốc độ (Ổn định)";
+                driftText = "Tốc độ khi có Drift";
+            }
+            default -> {
+                normalColor = new Color(37, 99, 235);
+                normalText = "Ổn định";
+                driftText = "Trôi dạt";
+            }
+        }
+
+        int symbolSize = 8;
+        int gap = 5;
+        int item1W = symbolSize + gap + fm.stringWidth(normalText);
+        int item2W = symbolSize + gap + fm.stringWidth(driftText);
+        int spacing = 12;
+        int totalW = item1W + spacing + item2W;
+
+        int startX = rightEdgeX - totalW;
+
+        // Vẽ Item 1 (Normal)
+        g2.setColor(normalColor);
+        if (isBar) {
+            g2.fillRect(startX, y + 1, symbolSize, symbolSize);
+        } else {
+            g2.fillOval(startX, y + 1, symbolSize, symbolSize);
+        }
+        g2.setColor(new Color(51, 65, 85));
+        g2.drawString(normalText, startX + symbolSize + gap, y + symbolSize);
+
+        // Vẽ Item 2 (Drift)
+        int x2 = startX + item1W + spacing;
+        g2.setColor(driftColor);
+        if (isBar) {
+            g2.fillRect(x2, y + 1, symbolSize, symbolSize);
+        } else {
+            g2.fillOval(x2, y + 1, symbolSize, symbolSize);
+            g2.setColor(new Color(239, 68, 68, 120));
+            g2.drawOval(x2 - 1, y, symbolSize + 2, symbolSize + 2);
+        }
+        g2.setColor(new Color(51, 65, 85));
+        g2.drawString(driftText, x2 + symbolSize + gap, y + symbolSize);
     }
 
     static List<Checkpoint> sortCheckpointsByTid(List<Checkpoint> data) {
@@ -433,11 +630,19 @@ public class ChartPanel extends JPanel {
                 && result.getType() == DriftResult.DriftType.GLOBAL_DRIFT;
     }
 
-    static double transformMetric(double value) {
+    private double transformMetric(double value) {
+        if (metricMode == MetricMode.RAM_USAGE || metricMode == MetricMode.THROUGHPUT
+                || metricMode == MetricMode.HUI_COUNT || metricMode == MetricMode.BAR_HUI_COUNT) {
+            return value;
+        }
         return Math.copySign(Math.log1p(Math.abs(value)), value);
     }
 
-    static double inverseTransformMetric(double value) {
+    private double inverseTransformMetric(double value) {
+        if (metricMode == MetricMode.RAM_USAGE || metricMode == MetricMode.THROUGHPUT
+                || metricMode == MetricMode.HUI_COUNT || metricMode == MetricMode.BAR_HUI_COUNT) {
+            return value;
+        }
         return Math.copySign(Math.expm1(Math.abs(value)), value);
     }
 
