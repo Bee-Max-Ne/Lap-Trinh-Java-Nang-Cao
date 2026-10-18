@@ -23,4 +23,6 @@ docs/slide_preview/
 generate_deck/
 generate_deck_native/
 build_*.py
+docx_*.py
+sync_*.py
 *_content.txt
