@@ -55,6 +55,16 @@ Nhánh `pre-design-patterns` đóng vai trò là **chuẩn gốc (Baseline)** �
   - Khắc phục triệt để lỗi định dạng chuỗi CSS `%# 0,f` bằng cách sử dụng `StringBuilder` ghép chuỗi thuần.
 - Hỗ trợ thêm các tùy chọn: *Lưu ảnh biểu đồ hiện tại (PNG)* và *Xuất toàn bộ 5 biểu đồ ra thư mục ảnh PNG*.
 
+### 1.5. Giám sát Chi phí Cấp phát Đối tượng & Chuẩn hóa Đo lường Benchmark (Mục 1 & Mục 3)
+- **Ước tính đối tượng đã cấp phát (`Estimated Objects Allocated`)**:
+  - Đo đạc chính xác số lượng đối tượng được sinh mới trực tiếp trong luồng (`1 Transaction` + $M$ `Element` trên mỗi dòng giao dịch + các đối tượng `Checkpoint` và `HighUtilityItemset`).
+  - Hiển thị đồng bộ tại: Thẻ KPI Tab 4 (`CẤP PHÁT (NEW)`), Bảng số liệu chi tiết Nhóm II (`statsTable`), Văn bản báo cáo (`summaryStatsArea`), Báo cáo HTML Dashboard (`ReportExporter`), và Thẻ chỉ báo tài nguyên (`SummaryChartsPanel`).
+- **Tỷ lệ thời gian dừng GC (`GC Overhead % CPU`)**:
+  - Đo lường chính xác tỷ lệ % tổng thời gian thực thi mà JVM phải dừng CPU (Stop-The-World pause) để thực hiện dọn dẹp bộ nhớ: $\text{GC Overhead \%} = \frac{\text{GC Pause Time (ms)}}{\text{Elapsed Time (ms)}} \times 100\%$.
+- **Nút thao tác "🧹 Dọn RAM JVM" (Force GC) & Chuẩn hóa Bộ nhớ Trước khi Đo**:
+  - Tích hợp nút `🧹 Dọn RAM JVM` trên thanh công cụ chính: Cho phép người dùng chủ động kích hoạt `System.gc()` để giải phóng heap bị chiếm dụng bởi các phiên chạy trước.
+  - Tự động kích hoạt thu gom rác trước khi bắt đầu phiên chạy (`onRunSimulation`) và khi đặt lại hệ thống (`onReset`), đảm bảo môi trường đo lường benchmark sạch sẽ, công bằng và có độ tin cậy khoa học cao nhất.
+
 ---
 
 ## 2. TÁC DỤNG CỦA CÁC THAM SỐ THUẬT TOÁN & KỊCH BẢN CAO / THẤP
@@ -89,6 +99,18 @@ Khi đối chiếu hiệu năng kiến trúc, các chỉ số dưới đây là 
 - **Định nghĩa**: Số lần bộ Garbage Collector của JVM phải can thiệp để dọn dẹp các đối tượng không còn sử dụng trong bộ nhớ, và tổng thời gian hệ thống bị ngưng trệ (Stop-The-World pause).
 - **Ý nghĩa**: Phản ánh trực tiếp chi phí quản lý vòng đời đối tượng. Một kiến trúc tốt sẽ giảm thiểu tối đa số lần kích hoạt GC.
 
+### 3.4. Ước tính số đối tượng đã cấp phát (Estimated Objects Allocated)
+- **Định nghĩa**: Tổng số đối tượng mô hình dữ liệu (`Transaction`, `Element`, `HighUtilityItemset`, `Checkpoint`) được cấp phát trực tiếp bằng từ khóa `new`.
+- **Ý nghĩa & Kịch bản Cao / Thấp**:
+  - **Khi RẤT CAO (Đặc trưng của Baseline)**: Với file dữ liệu 50,000 giao dịch, mỗi giao dịch có 10–20 item, hệ thống phải cấp phát tới **500,000 – 1,000,000 đối tượng** ngắn hạn. Điều này tạo áp lực kinh hoàng lên vùng nhớ Young Generation của JVM, gây bão Minor GC liên tục.
+  - **Khi THẤP (Kỳ vọng của Mẫu Object Pool)**: Với Object Pool, số đối tượng sinh mới chỉ xấp xỉ kích thước Pool (ví dụ 500 – 1,000 đối tượng) và được tái sử dụng liên tục, giảm tới **>99%** số lượng đối tượng cấp phát mới!
+
+### 3.5. Tỷ lệ thời gian dừng GC (GC Overhead % CPU)
+- **Định nghĩa**: Tỷ lệ phần trăm thời gian CPU mà ứng dụng phải tạm ngưng xử lý nghiệp vụ để dành cho bộ dọn rác JVM: $\text{GC Overhead \%} = \frac{\text{GC Pause Time}}{\text{Elapsed Time}} \times 100\%$.
+- **Ý nghĩa & Kịch bản Cao / Thấp**:
+  - **Khi CAO (> 5% – 15%)**: Hệ thống đang bị "nghẽn rác" (GC Churn). CPU lãng phí chu kỳ máy tính quý giá cho việc thu gom bộ nhớ thay vì xử lý thuật toán khai phá, làm sụt giảm nghiêm trọng thông lượng TPS.
+  - **Khi THẤP (< 1% – 2%)**: Vòng đời đối tượng được kiểm soát tối ưu. Hệ thống vận hành mượt mà, phản hồi tức thì với tốc độ luồng dữ liệu thời gian thực.
+
 ---
 
 ## 4. PHƯƠNG PHÁP SO SÁNH GIỮA HAI NHÁNH (TRƯỚC VS. SAU ÁP DỤNG DESIGN PATTERNS)
@@ -107,10 +129,12 @@ Khi bạn chuyển sang chạy trên nhánh có Design Patterns và đối chi�
 
 | Tiêu chí đánh giá | Nhánh `pre-design-patterns` (Baseline) | Nhánh Áp dụng Mẫu thiết kế (`post-design-patterns`) | Tỷ lệ cải thiện kỳ vọng |
 | :--- | :--- | :--- | :--- |
+| **Đối tượng cấp phát mới** | **Hàng trăm nghìn đến hàng triệu đối tượng** sinh mới liên tục bằng từ khóa `new`. | **Cố định theo kích thước Pool** (~500 – 1,000 đối tượng), hầu như không cấp phát mới. | **Giảm > 99% số đối tượng tạo mới** |
 | **Bộ nhớ RAM Đỉnh (Peak Heap)** | **Rất cao**: Đỉnh RAM có thể lên tới 500 MB – 1,500 MB tùy dung lượng file. | **Thấp và ổn định**: Đỉnh RAM thường chỉ duy trì quanh mức 100 MB – 300 MB. | **Tiết kiệm từ 40% – 70% RAM** |
 | **Đường đồ thị RAM** | Răng cưa lớn, độ dốc tăng dựng đứng trước mỗi đợt GC. | Đường biểu diễn phẳng, biến thiên rất nhẹ nhàng và ổn định. | Đường cong bộ nhớ phẳng |
 | **Số lần kích hoạt GC** | Rất nhiều (từ vài chục đến hàng trăm lần trong suốt phiên chạy). | Rất ít (chỉ kích hoạt vài lần ở giai đoạn nạp dữ liệu ban đầu). | **Giảm 75% – 90% số lần GC** |
 | **Tổng thời gian dừng GC (Pause)** | Cao (hàng trăm đến hàng nghìn mili-giây bị lãng phí do dọn rác). | Rất thấp (hầu như bằng 0 ms hoặc vài mili-giây). | **Giảm 80% – 95% độ trễ GC** |
+| **Tỷ lệ thời gian dừng GC (GC Overhead)** | **Cao (3% – 12% CPU)**: CPU mất nhiều thời gian cho việc dọn dẹp rác. | **Rất thấp (< 0.5% – 1.5% CPU)**: Hệ thống hầu như không bị gián đoạn. | **Giảm 70% – 90% chi phí CPU cho GC** |
 | **Thông lượng trung bình (Avg TPS)** | Thấp hơn do CPU phải san sẻ tài nguyên để chạy luồng GC. | **Cao hơn rõ rệt**, duy trì tốc độ xử lý ổn định qua các checkpoint. | **Tăng từ 25% – 60% tốc độ TPS** |
 | **Số HUI & Mốc Drift phát hiện** | Kết quả khai phá tập mục và phát hiện trôi dạt. | **HOÀN TOÀN GIỐNG HỆT 100%** so với nhánh Baseline. | Đảm bảo tính toàn vẹn khoa học |
 
@@ -137,20 +161,23 @@ Khi bạn chuyển sang chạy trên nhánh có Design Patterns và đối chi�
 1. **Trên nhánh `pre-design-patterns` (Nhánh hiện tại)**:
    - Chọn một bộ dữ liệu chuẩn, ví dụ: `Chess-metadata` hoặc `Retail-metadata`.
    - Cấu hình một bộ tham số cố định (ví dụ: `MinUtil = 2000000`, `Interval = 300`, `Window = 500`, `Alpha = 0.05`, `Max Len = 3`, `Max Tx = 10000`, `Tốc độ trễ = 0 ms`).
+   - Nhấn nút **"🧹 Dọn RAM JVM"** để giải phóng triệt để heap rác tồn dư, đưa môi trường đo về baseline sạch.
    - Nhấn **▶ Phát luồng (RUN)** và chờ tiến trình hoàn tất 100%.
-   - Nhấn vào **Xuất dữ liệu ▾** $\rightarrow$ chọn **"🌐 Xuất Báo cáo Toàn diện (HTML + Toàn bộ Biểu đồ) ⭐"**.
+   - Nhấn vào **Xuất báo cáo ▾** $\rightarrow$ chọn **"🌐 Xuất Báo cáo Toàn diện (HTML + Toàn bộ Biểu đồ) ⭐"**.
    - Đặt tên file là: `Bao_Cao_Thuc_Nghiem_BASELINE.html`.
 
 2. **Chuyển sang nhánh có áp dụng Design Patterns**:
    - Chuyển git branch sang nhánh có mẫu thiết kế (khi bạn tiến hành bước tiếp theo).
    - Khởi chạy ứng dụng và nhập **đúng các tham số y hệt như bước 1** (cùng Dataset, cùng MinUtil, Interval, Window, Alpha, MaxLen, MaxTx).
+   - Nhấn nút **"🧹 Dọn RAM JVM"** trước khi phát luồng.
    - Nhấn **▶ Phát luồng (RUN)** và chờ hoàn tất.
    - Xuất Báo cáo HTML thứ hai với tên: `Bao_Cao_Thuc_Nghiem_DESIGN_PATTERNS.html`.
 
 3. **Tổng hợp kết luận cho báo cáo**:
-   - Mở cả hai tệp HTML trên trình duyệt.
-   - So sánh trực tiếp:
-     - Biểu đồ số 4 (*Tiêu thụ RAM*): Nhánh Pattern sẽ thấp và phẳng hơn nhiều so với nhánh Baseline.
-     - Biểu đồ số 5 (*Thông lượng*): Nhánh Pattern sẽ đạt mốc tx/s cao hơn.
-     - Bảng số liệu: So sánh dòng *Bộ nhớ RAM Heap đỉnh điểm* và dòng *Thu gom rác (Garbage Collection)*.
+   - Mở cả hai tệp HTML song song trên trình duyệt.
+   - So sánh trực tiếp các minh chứng cốt lõi:
+     - **Ước tính đối tượng đã tạo**: Nhánh Baseline tạo mới hàng trăm nghìn đối tượng; Nhánh Pattern chỉ tạo lượng đối tượng cố định theo dung lượng Object Pool.
+     - **Tỷ lệ dừng GC (GC Overhead %)**: Nhánh Baseline mất nhiều chu kỳ CPU dừng cho GC; Nhánh Pattern đạt mức lý tưởng gần như bằng 0.
+     - **Biểu đồ số 4 (Tiêu thụ RAM Heap)**: Nhánh Pattern sẽ thấp và phẳng hơn nhiều so với nhánh Baseline.
+     - **Biểu đồ số 5 (Thông lượng TPS)**: Nhánh Pattern sẽ đạt mốc tx/s cao hơn và ổn định hơn.
    - Nhấn nút **"🖨 In báo cáo / Lưu PDF"** trên cả 2 trang HTML để đính kèm bản in PDF vào phụ lục đồ án!

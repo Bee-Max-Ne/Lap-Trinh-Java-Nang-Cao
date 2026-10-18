@@ -394,8 +394,15 @@ public class ReportExporter {
 
         // KPI Cards
         sb.append("        <div class=\"kpi-grid\">\n");
-        String[] titles = {"Thời gian thực thi", "Thông lượng (TPS)", "Bộ nhớ RAM Heap", "Số lượng HUI duy nhất", "Tần suất Trôi dạt (Drift)"};
-        String[] borderColors = {"#a855f7", "#0284c7", "#f59e0b", "#10b981", "#ef4444"};
+        String[] titles;
+        String[] borderColors;
+        if (kpi != null && kpi.length >= 6) {
+            titles = new String[]{"Thời gian thực thi", "Thông lượng (TPS)", "Bộ nhớ RAM Heap", "Đối tượng đã cấp phát", "Số lượng HUI duy nhất", "Tần suất Trôi dạt (Drift)"};
+            borderColors = new String[]{"#a855f7", "#0284c7", "#f59e0b", "#0d9488", "#10b981", "#ef4444"};
+        } else {
+            titles = new String[]{"Thời gian thực thi", "Thông lượng (TPS)", "Bộ nhớ RAM Heap", "Số lượng HUI duy nhất", "Tần suất Trôi dạt (Drift)"};
+            borderColors = new String[]{"#a855f7", "#0284c7", "#f59e0b", "#10b981", "#ef4444"};
+        }
         for (int i = 0; i < titles.length; i++) {
             String val = (kpi != null && i < kpi.length && kpi[i] != null) ? kpi[i] : "-";
             sb.append("            <div class=\"kpi-card\" style=\"border-left: 4px solid ").append(borderColors[i]).append(";\">\n");

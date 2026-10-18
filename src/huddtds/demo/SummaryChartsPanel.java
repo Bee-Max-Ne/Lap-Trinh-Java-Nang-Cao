@@ -29,10 +29,12 @@ public class SummaryChartsPanel extends JPanel {
 
     private long gcCount = 0;
     private long gcTimeMs = 0;
+    private double gcOverheadPct = 0.0;
+    private long totalAllocatedObjects = 0;
 
     public SummaryChartsPanel() {
         setBackground(Color.WHITE);
-        setPreferredSize(new Dimension(380, 420));
+        setPreferredSize(new Dimension(380, 440));
         setMinimumSize(new Dimension(320, 360));
     }
 
@@ -40,7 +42,8 @@ public class SummaryChartsPanel extends JPanel {
             int totalCp, int gDrift, int lDrift,
             double currentRamMb, double peakRamMb, double maxRamMb,
             int avgTps, int peakTps,
-            long gcCount, long gcTimeMs
+            long gcCount, long gcTimeMs,
+            double gcOverheadPct, long totalAllocatedObjects
     ) {
         this.totalCp = totalCp;
         this.globalDrifts = gDrift;
@@ -52,6 +55,8 @@ public class SummaryChartsPanel extends JPanel {
         this.peakTps = peakTps;
         this.gcCount = gcCount;
         this.gcTimeMs = gcTimeMs;
+        this.gcOverheadPct = gcOverheadPct;
+        this.totalAllocatedObjects = totalAllocatedObjects;
         repaint();
     }
 
@@ -66,6 +71,8 @@ public class SummaryChartsPanel extends JPanel {
         this.peakTps = 0;
         this.gcCount = 0;
         this.gcTimeMs = 0;
+        this.gcOverheadPct = 0.0;
+        this.totalAllocatedObjects = 0;
         repaint();
     }
 
@@ -270,9 +277,11 @@ public class SummaryChartsPanel extends JPanel {
 
         curY += 40;
 
-        // 3. THU GOM RÁC (GARBAGE COLLECTION) THỐNG KÊ
-        if (curY + 28 <= y + height) {
+        // 3. THU GOM RÁC (GARBAGE COLLECTION) & CẤP PHÁT ĐỐI TƯỢNG
+        if (curY + 44 <= y + height) {
             drawGcStatusBadge(g2, barX, curY, barWidth);
+        } else if (curY + 24 <= y + height) {
+            drawCompactGcBadge(g2, barX, curY, barWidth);
         }
     }
 
@@ -316,16 +325,43 @@ public class SummaryChartsPanel extends JPanel {
     }
 
     private void drawGcStatusBadge(Graphics2D g2, int x, int y, int width) {
+        int badgeH = 42;
         g2.setColor(new Color(241, 245, 249));
-        g2.fill(new RoundRectangle2D.Float(x, y, width, 26, 6, 6));
+        g2.fill(new RoundRectangle2D.Float(x, y, width, badgeH, 6, 6));
         g2.setColor(new Color(226, 232, 240));
-        g2.draw(new RoundRectangle2D.Float(x, y, width, 26, 6, 6));
+        g2.draw(new RoundRectangle2D.Float(x, y, width, badgeH, 6, 6));
 
+        // Dòng 1: GC count, pause time, and GC Overhead %
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        g2.setColor(new Color(30, 41, 59));
+        String gcText = String.format(Locale.US, "♻ GC: %d lần (%d ms | %.2f%% CPU)", gcCount, gcTimeMs, gcOverheadPct);
+        g2.drawString(gcText, x + 8, y + 16);
+
+        // Nhãn kiến trúc bên phải
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        g2.setColor(new Color(100, 116, 139));
+        String archText = "Baseline (No Patterns)";
+        int archW = g2.getFontMetrics().stringWidth(archText);
+        g2.drawString(archText, x + width - archW - 8, y + 16);
+
+        // Dòng 2: Ước tính số đối tượng đã cấp phát
         g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        g2.setColor(new Color(51, 65, 85));
+        g2.setColor(new Color(71, 85, 105));
+        String objText = String.format(Locale.US, "📦 Đối tượng đã cấp phát: %,d obj (new trực tiếp, No Pool)", totalAllocatedObjects);
+        g2.drawString(objText, x + 8, y + 33);
+    }
 
-        String gcText = String.format(Locale.US, "♻ GC: %d lần thu gom | Tạm dừng: %d ms | Kiến trúc: Baseline (No Patterns)",
-                gcCount, gcTimeMs);
-        g2.drawString(gcText, x + 8, y + 17);
+    private void drawCompactGcBadge(Graphics2D g2, int x, int y, int width) {
+        int badgeH = 22;
+        g2.setColor(new Color(241, 245, 249));
+        g2.fill(new RoundRectangle2D.Float(x, y, width, badgeH, 6, 6));
+        g2.setColor(new Color(226, 232, 240));
+        g2.draw(new RoundRectangle2D.Float(x, y, width, badgeH, 6, 6));
+
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        g2.setColor(new Color(30, 41, 59));
+        String text = String.format(Locale.US, "♻ GC: %d lần (%d ms | %.1f%% CPU) | %,d obj",
+                gcCount, gcTimeMs, gcOverheadPct, totalAllocatedObjects);
+        g2.drawString(text, x + 6, y + 15);
     }
 }

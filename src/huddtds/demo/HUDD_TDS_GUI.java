@@ -71,6 +71,7 @@ public class HUDD_TDS_GUI extends JFrame {
     private final JButton btnPause;
     private final JButton btnStop;
     private final JButton btnReset;
+    private final JButton btnCleanMemory;
     private final JButton btnExport;
     private final JCheckBox chkTraceEachTransaction;
 
@@ -100,6 +101,7 @@ public class HUDD_TDS_GUI extends JFrame {
     private final JLabel lblTabKpiTime;
     private final JLabel lblTabKpiThroughput;
     private final JLabel lblTabKpiRam;
+    private final JLabel lblTabKpiAllocated;
     private final JLabel lblTabKpiHui;
     private final JLabel lblTabKpiDriftRate;
     private final DefaultTableModel statsTableModel;
@@ -261,6 +263,12 @@ public class HUDD_TDS_GUI extends JFrame {
         btnReset = new JButton("🔄 Đặt lại");
         controlRow.add(btnReset);
 
+        btnCleanMemory = new JButton("🧹 Dọn RAM JVM");
+        btnCleanMemory.setToolTipText("Thu gom rác (System.gc) để giải phóng bộ nhớ Heap và chuẩn hóa baseline thực nghiệm");
+        btnCleanMemory.setBackground(new Color(108, 117, 125));
+        btnCleanMemory.setForeground(Color.WHITE);
+        controlRow.add(btnCleanMemory);
+
         btnExport = new JButton("💾 Xuất báo cáo ▼");
         btnExport.setToolTipText("Xuất Nhật ký HUI, Nhật ký Drift hoặc Báo cáo thống kê");
         controlRow.add(btnExport);
@@ -371,11 +379,12 @@ public class HUDD_TDS_GUI extends JFrame {
         summaryDashboardPanel.setBorder(new EmptyBorder(6, 6, 6, 6));
 
         // 1. Thẻ KPI Dashboard
-        JPanel summaryKpiPanel = new JPanel(new GridLayout(1, 5, 6, 6));
+        JPanel summaryKpiPanel = new JPanel(new GridLayout(1, 6, 6, 6));
         summaryKpiPanel.setBorder(new EmptyBorder(0, 0, 4, 0));
         lblTabKpiTime = createMetricCard(summaryKpiPanel, "THỜI GIAN", "0.0 s", new Color(243, 232, 255));
         lblTabKpiThroughput = createMetricCard(summaryKpiPanel, "THÔNG LƯỢNG (TX/S)", "0 (Đỉnh: 0)", new Color(224, 242, 254));
         lblTabKpiRam = createMetricCard(summaryKpiPanel, "RAM HEAP", "0.0 MB (Đỉnh: 0.0)", new Color(254, 243, 199));
+        lblTabKpiAllocated = createMetricCard(summaryKpiPanel, "CẤP PHÁT (NEW)", "0 obj", new Color(240, 253, 250));
         lblTabKpiHui = createMetricCard(summaryKpiPanel, "HUI DUY NHẤT", "0 patterns", new Color(220, 252, 231));
         lblTabKpiDriftRate = createMetricCard(summaryKpiPanel, "TẦN SUẤT DRIFT", "0.0% (G:0, L:0)", new Color(254, 226, 226));
         summaryDashboardPanel.add(summaryKpiPanel, BorderLayout.NORTH);
@@ -526,6 +535,7 @@ public class HUDD_TDS_GUI extends JFrame {
         btnPause.addActionListener(e -> onTogglePause());
         btnStop.addActionListener(e -> onStopSimulation());
         btnReset.addActionListener(e -> onReset());
+        btnCleanMemory.addActionListener(e -> onCleanMemory());
         btnExport.addActionListener(e -> onShowExportMenu());
 
         // Thanh trượt tốc độ
@@ -750,7 +760,7 @@ public class HUDD_TDS_GUI extends JFrame {
                     selected, minutil, interval, windowSize, alpha, maxPattern,
                     0, 0, 0, 0, 0.0,
                     0, 0, curRamMb, curRamMb, maxRamMb,
-                    0, 0,
+                    0, 0, 0.0, 0L,
                     0, 0, 0,
                     0.0, 0.0, "N/A", 0.0,
                     "SẴN SÀNG PHÁT LUỒNG (Nhấn 'Phát luồng (RUN)' để tiến hành)"
@@ -764,7 +774,7 @@ public class HUDD_TDS_GUI extends JFrame {
             String dataset, double minutil, int interval, int window, double alpha, int maxLen,
             int totalTx, int totalCp, int gDrift, int lDrift, double elapsedSec,
             int avgTps, int peakTps, double currentRamMb, double peakRamMb, double maxRamMb,
-            long gcCount, long gcTimeMs,
+            long gcCount, long gcTimeMs, double gcOverheadPct, long totalAllocatedObjects,
             int distinctHuis, int totalHuis, int maxHuiPerCp,
             double avgDisHs, double maxDisHs, String topItemset, double topUtility,
             String executionStatus
@@ -775,6 +785,7 @@ public class HUDD_TDS_GUI extends JFrame {
         lblTabKpiTime.setText(String.format(Locale.US, "%.1f s", elapsedSec));
         lblTabKpiThroughput.setText(String.format(Locale.US, "%,d (Đỉnh: %,d)", avgTps, peakTps));
         lblTabKpiRam.setText(String.format(Locale.US, "%.1f MB (Đỉnh: %.1f)", currentRamMb, peakRamMb));
+        lblTabKpiAllocated.setText(String.format(Locale.US, "%,d obj", totalAllocatedObjects));
         lblTabKpiHui.setText(String.format(Locale.US, "%,d patterns", distinctHuis));
         lblTabKpiDriftRate.setText(String.format(Locale.US, "%.1f%% (G:%d, L:%d)", driftRate, gDrift, lDrift));
 
@@ -784,7 +795,8 @@ public class HUDD_TDS_GUI extends JFrame {
                     totalCp, gDrift, lDrift,
                     currentRamMb, peakRamMb, maxRamMb,
                     avgTps, peakTps,
-                    gcCount, gcTimeMs
+                    gcCount, gcTimeMs,
+                    gcOverheadPct, totalAllocatedObjects
             );
         }
 
@@ -805,7 +817,9 @@ public class HUDD_TDS_GUI extends JFrame {
         statsTableModel.addRow(new Object[]{"  Bộ nhớ RAM Heap đang dùng", String.format(Locale.US, "%.2f MB", currentRamMb)});
         statsTableModel.addRow(new Object[]{"  Bộ nhớ RAM Heap đỉnh điểm (Peak Heap)", String.format(Locale.US, "%.2f MB", peakRamMb)});
         statsTableModel.addRow(new Object[]{"  Giới hạn bộ nhớ JVM (Max Heap)", String.format(Locale.US, "%.2f MB", maxRamMb)});
+        statsTableModel.addRow(new Object[]{"  Ước tính đối tượng đã tạo (Allocated)", String.format(Locale.US, "%,d đối tượng (new trực tiếp)", totalAllocatedObjects)});
         statsTableModel.addRow(new Object[]{"  Thu gom rác (Garbage Collection)", String.format(Locale.US, "%d lần (%d ms pause)", gcCount, gcTimeMs)});
+        statsTableModel.addRow(new Object[]{"  Tỷ lệ thời gian dừng GC (GC Overhead)", String.format(Locale.US, "%.2f%% tổng thời gian CPU", gcOverheadPct)});
         double avgCpMs = totalCp > 0 ? (elapsedSec * 1000.0 / totalCp) : 0.0;
         statsTableModel.addRow(new Object[]{"  Thời gian xử lý TB / Checkpoint", String.format(Locale.US, "%.2f ms/checkpoint", avgCpMs)});
 
@@ -846,7 +860,9 @@ public class HUDD_TDS_GUI extends JFrame {
                 + "   - Tốc độ thông lượng trung bình   : %,d tx/giây%n"
                 + "   - Tốc độ thông lượng đỉnh điểm    : %,d tx/giây%n"
                 + "   - Bộ nhớ RAM Heap tiêu thụ        : %.2f MB (Đỉnh: %.2f MB | Max: %.2f MB)%n"
+                + "   - Ước tính đối tượng đã tạo       : %,d đối tượng (new trực tiếp, No Pool)%n"
                 + "   - Hoạt động Garbage Collection    : %d lần thu gom (Tổng dừng: %d ms)%n"
+                + "   - Tỷ lệ chi phí thời gian GC      : %.2f%% tổng thời gian CPU%n"
                 + "   - Thời gian xử lý TB/Checkpoint   : %.2f ms/checkpoint%n"
                 + "--------------------------------------------------------------------------------%n"
                 + "3. KẾT QUẢ KHAI PHÁ ĐỘ LỢI CAO (HUI):%n"
@@ -867,7 +883,8 @@ public class HUDD_TDS_GUI extends JFrame {
                 dataset, minutil, interval, window, alpha, maxLen,
                 totalTx, elapsedSec, avgTps, peakTps,
                 currentRamMb, peakRamMb, maxRamMb,
-                gcCount, gcTimeMs, avgCpMs,
+                totalAllocatedObjects,
+                gcCount, gcTimeMs, gcOverheadPct, avgCpMs,
                 distinctHuis, totalHuis, avgHuiPerCp, maxHuiPerCp,
                 topItemset, topUtility,
                 totalCp, gDrift, lDrift, driftRate,
@@ -943,6 +960,12 @@ public class HUDD_TDS_GUI extends JFrame {
         }
 
         onReset();
+        // Dọn dẹp bộ nhớ Heap tự động trước khi đo lường để chuẩn hóa baseline
+        System.gc();
+        try {
+            Thread.sleep(80);
+        } catch (InterruptedException ignored) {}
+
         btnRun.setEnabled(false);
         btnPause.setEnabled(true);
         btnPause.setText("⏸ Tạm dừng");
@@ -1013,9 +1036,60 @@ public class HUDD_TDS_GUI extends JFrame {
         if (summaryChartsPanel != null) {
             summaryChartsPanel.reset();
         }
+        System.gc();
         updateSummaryStatsPreview();
         processLogArea.setText("");
         currentProcessLogFile = null;
+    }
+
+    private void onCleanMemory() {
+        if (currentWorker != null && !currentWorker.isDone() && !currentWorker.isCancelled()) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Thực nghiệm đang chạy. Kích hoạt GC bây giờ có thể gây dừng luồng (GC pause)\n"
+                    + "và làm ảnh hưởng đến chỉ số đo đạc thông lượng (TPS).\n\n"
+                    + "Bạn có chắc chắn muốn tiếp tục dọn RAM không?",
+                    "Cảnh báo khi chạy",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        Runtime rt = Runtime.getRuntime();
+        long beforeUsed = rt.totalMemory() - rt.freeMemory();
+        double beforeMb = beforeUsed / (1024.0 * 1024.0);
+
+        // Kích hoạt dọn dẹp bộ nhớ triệt để
+        System.gc();
+        try {
+            Thread.sleep(150);
+        } catch (InterruptedException ignored) {}
+        System.gc();
+
+        long afterUsed = rt.totalMemory() - rt.freeMemory();
+        double afterMb = afterUsed / (1024.0 * 1024.0);
+        double freedMb = Math.max(0.0, beforeMb - afterMb);
+
+        lblTabKpiRam.setText(String.format(Locale.US, "%.1f MB (Đã dọn)", afterMb));
+        appendProcessLog(String.format(Locale.US,
+                "[JVM] Đã kích hoạt thu gom rác thủ công (Force GC). Trước: %.1f MB -> Sau: %.1f MB (Giải phóng: %.1f MB).",
+                beforeMb, afterMb, freedMb));
+
+        if (currentWorker == null || currentWorker.isDone()) {
+            updateSummaryStatsPreview();
+        }
+
+        JOptionPane.showMessageDialog(this,
+                String.format(Locale.US,
+                        "Đã dọn dẹp bộ nhớ Heap thành công!\n\n"
+                        + "• Bộ nhớ trước khi dọn: %.2f MB\n"
+                        + "• Bộ nhớ sau khi dọn  : %.2f MB\n"
+                        + "• Dung lượng thu hồi  : %.2f MB\n\n"
+                        + "Bộ nhớ Heap đã sạch, sẵn sàng cho phiên đo đạc thực nghiệm chuẩn xác.",
+                        beforeMb, afterMb, freedMb),
+                "Dọn RAM JVM Thành Công",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void onShowExportMenu() {
@@ -1063,6 +1137,7 @@ public class HUDD_TDS_GUI extends JFrame {
                 lblTabKpiTime.getText(),
                 lblTabKpiThroughput.getText(),
                 lblTabKpiRam.getText(),
+                lblTabKpiAllocated.getText(),
                 lblTabKpiHui.getText(),
                 lblTabKpiDriftRate.getText()
         };
@@ -1215,6 +1290,7 @@ public class HUDD_TDS_GUI extends JFrame {
         private long gcStartCount = 0;
         private long gcStartTimeMs = 0;
         private int checkpointCount = 0;
+        private long totalAllocatedObjects = 0;
 
         private static long getGcCount() {
             long sum = 0;
@@ -1243,12 +1319,15 @@ public class HUDD_TDS_GUI extends JFrame {
             double maxMb = rt.maxMemory() / (1024.0 * 1024.0);
             long curGcCount = Math.max(0, getGcCount() - gcStartCount);
             long curGcTime = Math.max(0, getGcTime() - gcStartTimeMs);
+            long elapsed = Math.max(1, System.currentTimeMillis() - startTimeMs);
+            double gcOverheadPct = Math.min(100.0, (curGcTime * 100.0) / elapsed);
             double avgDistance = currentCpCount > 0 ? (sumGlobalDistance / currentCpCount) : 0.0;
             return new MetricsSnapshot(
                     curRamMb, peakMb, maxMb, peakTxPerSec,
                     distinctHuiPatterns.size(), totalHuiDetections, maxHuiPerCp,
                     maxGlobalDistance, avgDistance, topItemset, topUtility,
-                    curGcCount, curGcTime
+                    curGcCount, curGcTime,
+                    gcOverheadPct, totalAllocatedObjects
             );
         }
 
@@ -1385,6 +1464,7 @@ public class HUDD_TDS_GUI extends JFrame {
                     }
 
                     Transaction tx = TransactionParser.parseLine(line, tid);
+                    totalAllocatedObjects += 1 + tx.getElements().size();
                     if (traceEachTransaction || tid == 1 || tid % interval == 0) {
                         trace(String.format(Locale.US, "[PARSE] TID=%d hợp lệ; items=%d, TU=%.4f",
                                 tid, tx.getElements().size(), tx.getTransactionUtility()));
@@ -1400,6 +1480,7 @@ public class HUDD_TDS_GUI extends JFrame {
                     peakMemoryBytes = Math.max(peakMemoryBytes, usedMem);
 
                     if (cp != null) {
+                        totalAllocatedObjects += 1 + cp.getHuis().size();
                         double curRamMb = usedMem / (1024.0 * 1024.0);
                         cp.setRamUsageMb(curRamMb);
                         cp.setThroughputTxPerSec(currentTxPerSec);
@@ -1552,6 +1633,7 @@ public class HUDD_TDS_GUI extends JFrame {
                                 upd.speedTxPerSec, upd.snapshot.peakTxPerSec,
                                 upd.snapshot.currentRamMb, upd.snapshot.peakRamMb, upd.snapshot.maxRamMb,
                                 upd.snapshot.gcCount, upd.snapshot.gcTimeMs,
+                                upd.snapshot.gcOverheadPct, upd.snapshot.totalAllocatedObjects,
                                 upd.snapshot.distinctHuiCount, upd.snapshot.totalHuiDetections, upd.snapshot.maxHuiPerCp,
                                 upd.snapshot.avgGlobalDistance, upd.snapshot.maxGlobalDistance,
                                 upd.snapshot.topItemset, upd.snapshot.topUtility,
@@ -1601,6 +1683,7 @@ public class HUDD_TDS_GUI extends JFrame {
             double maxRamMb = rt.maxMemory() / (1024.0 * 1024.0);
             long gcCount = Math.max(0, getGcCount() - gcStartCount);
             long gcTimeMs = Math.max(0, getGcTime() - gcStartTimeMs);
+            double gcOverheadPct = (elapsed > 0) ? Math.min(100.0, (gcTimeMs * 100.0) / elapsed) : 0.0;
             int avgTps = (int) ((totalProcessedTransactions * 1000.0) / elapsed);
             double avgDisHs = totalCheckpointsCount > 0 ? (sumGlobalDistance / totalCheckpointsCount) : 0.0;
 
@@ -1614,6 +1697,7 @@ public class HUDD_TDS_GUI extends JFrame {
                     avgTps, peakTxPerSec,
                     currentRamMb, peakRamMb, maxRamMb,
                     gcCount, gcTimeMs,
+                    gcOverheadPct, totalAllocatedObjects,
                     distinctHuiPatterns.size(), totalHuiDetections, maxHuiPerCp,
                     avgDisHs, maxGlobalDistance,
                     topItemset, topUtility,
@@ -1636,11 +1720,14 @@ public class HUDD_TDS_GUI extends JFrame {
         final double topUtility;
         final long gcCount;
         final long gcTimeMs;
+        final double gcOverheadPct;
+        final long totalAllocatedObjects;
 
         MetricsSnapshot(double currentRamMb, double peakRamMb, double maxRamMb,
                         int peakTxPerSec, int distinctHuiCount, int totalHuiDetections,
                         int maxHuiPerCp, double maxGlobalDistance, double avgGlobalDistance,
-                        String topItemset, double topUtility, long gcCount, long gcTimeMs) {
+                        String topItemset, double topUtility, long gcCount, long gcTimeMs,
+                        double gcOverheadPct, long totalAllocatedObjects) {
             this.currentRamMb = currentRamMb;
             this.peakRamMb = peakRamMb;
             this.maxRamMb = maxRamMb;
@@ -1654,6 +1741,8 @@ public class HUDD_TDS_GUI extends JFrame {
             this.topUtility = topUtility;
             this.gcCount = gcCount;
             this.gcTimeMs = gcTimeMs;
+            this.gcOverheadPct = gcOverheadPct;
+            this.totalAllocatedObjects = totalAllocatedObjects;
         }
     }
 
