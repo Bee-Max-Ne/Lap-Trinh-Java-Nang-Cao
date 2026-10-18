@@ -86,58 +86,9 @@ public class ReportExporter {
         }
 
         try {
-            // 1. Chụp ảnh 5 chế độ của ChartPanel
-            ChartPanel.MetricMode originalMode = chartPanel.getMetricMode();
-            int imgW = 720;
-            int imgH = 380;
+            exportReportToFile(targetFile, datasetName, kpiValues, statsTableModel, summaryText, chartPanel, summaryChartsPanel);
 
-            chartPanel.setMetricMode(ChartPanel.MetricMode.GLOBAL_DISTANCE);
-            BufferedImage imgGlobalDis = captureComponent(chartPanel, imgW, imgH);
-
-            chartPanel.setMetricMode(ChartPanel.MetricMode.HUI_COUNT);
-            BufferedImage imgHuiCount = captureComponent(chartPanel, imgW, imgH);
-
-            chartPanel.setMetricMode(ChartPanel.MetricMode.BAR_HUI_COUNT);
-            BufferedImage imgBarHui = captureComponent(chartPanel, imgW, imgH);
-
-            chartPanel.setMetricMode(ChartPanel.MetricMode.RAM_USAGE);
-            BufferedImage imgRam = captureComponent(chartPanel, imgW, imgH);
-
-            chartPanel.setMetricMode(ChartPanel.MetricMode.THROUGHPUT);
-            BufferedImage imgThroughput = captureComponent(chartPanel, imgW, imgH);
-
-            // Khôi phục lại chế độ người dùng đang chọn trên GUI
-            chartPanel.setMetricMode(originalMode);
-            chartPanel.repaint();
-
-            // 2. Chụp ảnh SummaryChartsPanel
-            BufferedImage imgSummary = null;
-            if (summaryChartsPanel != null) {
-                imgSummary = captureComponent(summaryChartsPanel, imgW, 420);
-                summaryChartsPanel.repaint();
-            }
-
-            // 3. Tạo mã HTML tự chứa
-            String htmlContent = buildHtmlDocument(
-                    datasetName,
-                    kpiValues,
-                    statsTableModel,
-                    summaryText,
-                    toBase64Png(imgGlobalDis),
-                    toBase64Png(imgHuiCount),
-                    toBase64Png(imgBarHui),
-                    toBase64Png(imgRam),
-                    toBase64Png(imgThroughput),
-                    toBase64Png(imgSummary)
-            );
-
-            // 4. Ghi tệp với mã hóa UTF-8
-            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
-                    new FileOutputStream(targetFile), StandardCharsets.UTF_8))) {
-                writer.write(htmlContent);
-            }
-
-            // 5. Thông báo và mở file trong trình duyệt
+            // Thông báo và mở file trong trình duyệt
             int openChoice = JOptionPane.showConfirmDialog(parent,
                     "Xuất báo cáo toàn diện thành công!\n" + targetFile.getAbsolutePath() + "\n\nBạn có muốn mở báo cáo trong trình duyệt ngay bây giờ không?",
                     "Xuất Báo cáo Thành công",
@@ -153,6 +104,70 @@ public class ReportExporter {
                     "Lỗi khi xuất báo cáo HTML: " + ex.getMessage(),
                     "Lỗi xuất báo cáo",
                     JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Xuất tệp Báo cáo Dashboard HTML trực tiếp ra một tệp cụ thể trên đĩa.
+     */
+    public static void exportReportToFile(
+            File targetFile,
+            String datasetName,
+            String[] kpiValues,
+            TableModel statsTableModel,
+            String summaryText,
+            ChartPanel chartPanel,
+            SummaryChartsPanel summaryChartsPanel
+    ) throws IOException {
+        int imgW = 720;
+        int imgH = 380;
+        ChartPanel.MetricMode originalMode = chartPanel.getMetricMode();
+
+        chartPanel.setMetricMode(ChartPanel.MetricMode.GLOBAL_DISTANCE);
+        BufferedImage imgGlobalDis = captureComponent(chartPanel, imgW, imgH);
+
+        chartPanel.setMetricMode(ChartPanel.MetricMode.HUI_COUNT);
+        BufferedImage imgHuiCount = captureComponent(chartPanel, imgW, imgH);
+
+        chartPanel.setMetricMode(ChartPanel.MetricMode.BAR_HUI_COUNT);
+        BufferedImage imgBarHui = captureComponent(chartPanel, imgW, imgH);
+
+        chartPanel.setMetricMode(ChartPanel.MetricMode.RAM_USAGE);
+        BufferedImage imgRam = captureComponent(chartPanel, imgW, imgH);
+
+        chartPanel.setMetricMode(ChartPanel.MetricMode.THROUGHPUT);
+        BufferedImage imgThroughput = captureComponent(chartPanel, imgW, imgH);
+
+        chartPanel.setMetricMode(originalMode);
+        chartPanel.repaint();
+
+        BufferedImage imgSummary = null;
+        if (summaryChartsPanel != null) {
+            imgSummary = captureComponent(summaryChartsPanel, imgW, 420);
+            summaryChartsPanel.repaint();
+        }
+
+        String htmlContent = buildHtmlDocument(
+                datasetName,
+                kpiValues,
+                statsTableModel,
+                summaryText,
+                toBase64Png(imgGlobalDis),
+                toBase64Png(imgHuiCount),
+                toBase64Png(imgBarHui),
+                toBase64Png(imgRam),
+                toBase64Png(imgThroughput),
+                toBase64Png(imgSummary)
+        );
+
+        File parentDir = targetFile.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(targetFile), StandardCharsets.UTF_8))) {
+            writer.write(htmlContent);
         }
     }
 
