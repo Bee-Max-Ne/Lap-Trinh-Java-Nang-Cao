@@ -5,9 +5,22 @@ logs/
 *.rar
 *.zip
 *.odt
+*.docx
 *.csv
 Ket Qua/
 Dataset-metadata (CapNhat 14-02)/
 data/datasets/
 **/*.class
 src/**/*.class
+~$*
+__pycache__/
+*.pyc
+
+# Presentation Slides & Local Reporting Artifacts
+*.pptx
+docs/*.pptx
+docs/slide_preview/
+generate_deck/
+generate_deck_native/
+build_*.py
+*_content.txt
