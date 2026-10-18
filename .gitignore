@@ -26,3 +26,6 @@ build_*.py
 docx_*.py
 sync_*.py
 *_content.txt
+generate_uml*.py
+test_uml*
+docs/uml_diagrams/
