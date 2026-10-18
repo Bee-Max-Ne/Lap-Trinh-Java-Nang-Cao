@@ -117,7 +117,7 @@ public class SummaryChartsPanel extends JPanel {
         // Tiêu đề Card
         g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
         g2.setColor(new Color(30, 41, 59));
-        g2.drawString("📊 TỶ LỆ TRÔI DẠT (CONCEPT DRIFT DISTRIBUTION)", x + 12, y + 20);
+        g2.drawString("TỶ LỆ TRÔI DẠT (CONCEPT DRIFT DISTRIBUTION)", x + 12, y + 20);
 
         int stableCount = Math.max(0, totalCp - globalDrifts - localDrifts);
         double driftRate = totalCp > 0 ? (((double) (globalDrifts + localDrifts) / totalCp) * 100.0) : 0.0;
@@ -246,7 +246,7 @@ public class SummaryChartsPanel extends JPanel {
         // Tiêu đề Card kèm chú thích vạch đỏ
         g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
         g2.setColor(new Color(30, 41, 59));
-        g2.drawString("⚡ TIÊU THỤ TÀI NGUYÊN & HIỆU NĂNG", x + 12, y + 20);
+        g2.drawString("TIÊU THỤ TÀI NGUYÊN & HIỆU NĂNG", x + 12, y + 20);
 
         // Chú giải vạch đỏ
         g2.setFont(new Font("Segoe UI", Font.ITALIC, 10));
@@ -334,7 +334,7 @@ public class SummaryChartsPanel extends JPanel {
         // Dòng 1: GC count, pause time, and GC Overhead %
         g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
         g2.setColor(new Color(30, 41, 59));
-        String gcText = String.format(Locale.US, "♻ GC: %d lần (%d ms | %.2f%% CPU)", gcCount, gcTimeMs, gcOverheadPct);
+        String gcText = String.format(Locale.US, "GC: %d lần (%d ms | %.2f%% CPU)", gcCount, gcTimeMs, gcOverheadPct);
         g2.drawString(gcText, x + 8, y + 16);
 
         // Nhãn kiến trúc bên phải
@@ -347,7 +347,7 @@ public class SummaryChartsPanel extends JPanel {
         // Dòng 2: Ước tính số đối tượng đã cấp phát
         g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         g2.setColor(new Color(71, 85, 105));
-        String objText = String.format(Locale.US, "📦 Đối tượng đã cấp phát: %,d obj (Object Pool & Flyweight Active)", totalAllocatedObjects);
+        String objText = String.format(Locale.US, "Đối tượng đã cấp phát: %,d obj (Object Pool & Flyweight Active)", totalAllocatedObjects);
         g2.drawString(objText, x + 8, y + 33);
     }
 
@@ -360,7 +360,7 @@ public class SummaryChartsPanel extends JPanel {
 
         g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
         g2.setColor(new Color(30, 41, 59));
-        String text = String.format(Locale.US, "♻ GC: %d lần (%d ms | %.1f%% CPU) | %,d obj",
+        String text = String.format(Locale.US, "GC: %d lần (%d ms | %.1f%% CPU) | %,d obj",
                 gcCount, gcTimeMs, gcOverheadPct, totalAllocatedObjects);
         g2.drawString(text, x + 6, y + 15);
     }
