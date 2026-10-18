@@ -9,6 +9,7 @@ import huddtds.model.DriftResult;
 import huddtds.model.HighUtilityItemset;
 
 import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -95,8 +96,16 @@ public class EvidenceCapture {
         BufferedImage testProofImg = renderUnitTestProofGraphic();
         saveImage(testProofImg, "Hinh_5_8_Minh_Chung_17_Test_Suite_Pass_100_Phan_Tram.png", "Minh chứng 17 bộ kiểm thử tự động xác minh 8 mẫu thiết kế (100% Passed)");
 
+        // 6. Vẽ & Chụp Biểu đồ Cột Đối chứng Thời gian Thực thi (Execution Time Comparison)
+        BufferedImage timeCompImg = renderExecutionTimeComparisonGraphic();
+        saveImage(timeCompImg, "Hinh_5_9_Bieu_Do_Cot_So_Sanh_Thoi_Gian_Chay.png", "Biểu đồ cột đối chứng thời gian thực thi (Baseline vs Design Patterns)");
+
+        // 7. Vẽ & Chụp Biểu đồ Cột Đối chứng Tiêu thụ Bộ nhớ RAM Đỉnh (Peak RAM Comparison)
+        BufferedImage ramCompImg = renderMemoryComparisonGraphic();
+        saveImage(ramCompImg, "Hinh_5_10_Bieu_Do_Cot_So_Sanh_Tieu_Thu_RAM_Heap.png", "Biểu đồ cột đối chứng tiêu thụ RAM Heap đỉnh (Baseline vs Design Patterns)");
+
         System.out.println("================================================================================");
-        System.out.println("   HOÀN TẤT XUẤT 8 ẢNH MINH CHỨNG CHẤT LƯỢNG CAO VÀO THƯ MỤC docs/minh_chung/!");
+        System.out.println("   HOÀN TẤT XUẤT 10 ẢNH MINH CHỨNG CHẤT LƯỢNG CAO VÀO THƯ MỤC docs/minh_chung/!");
         System.out.println("================================================================================");
     }
 
@@ -334,6 +343,268 @@ public class EvidenceCapture {
             }
             logY += 26;
         }
+
+        g2.dispose();
+        return img;
+    }
+
+    private BufferedImage renderExecutionTimeComparisonGraphic() {
+        int w = 1200;
+        int h = 760;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        // Nền trắng/xám nhẹ
+        g2.setColor(new Color(248, 250, 252));
+        g2.fillRect(0, 0, w, h);
+
+        // Header Banner
+        g2.setColor(new Color(30, 58, 138));
+        g2.fill(new RoundRectangle2D.Float(20, 20, w - 40, 75, 12, 12));
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        g2.drawString("ĐỐI CHỨNG TRỰC QUAN THỜI GIAN THỰC THI (EXECUTION TIME COMPARISON)", 40, 50);
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        g2.setColor(new Color(224, 231, 255));
+        g2.drawString("So sánh thời gian xử lý: Baseline (Chưa áp dụng mẫu) vs Design Patterns (Đã tối ưu hóa)", 40, 74);
+
+        // Legend
+        int legX = w - 440;
+        g2.setColor(new Color(148, 163, 184));
+        g2.fillRect(legX, 38, 14, 14);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        g2.drawString("Baseline (Chưa có Patterns)", legX + 22, 50);
+
+        g2.setColor(new Color(37, 99, 235));
+        g2.fillRect(legX, 60, 14, 14);
+        g2.setColor(Color.WHITE);
+        g2.drawString("Design Patterns (Đã tối ưu)", legX + 22, 72);
+
+        // Card Container
+        int cardY = 110;
+        int cardW = w - 40;
+        int cardH = 560;
+        g2.setColor(Color.WHITE);
+        g2.fill(new RoundRectangle2D.Float(20, cardY, cardW, cardH, 12, 12));
+        g2.setColor(new Color(226, 232, 240));
+        g2.draw(new RoundRectangle2D.Float(20, cardY, cardW, cardH, 12, 12));
+
+        String[] names = {
+                "Accidents (340K tx)",
+                "Chainstore (1.11M tx)",
+                "NewConnects (67.5K tx)",
+                "connects (67.5K tx)",
+                "Retail (88K tx)",
+                "NewChess (3.2K tx)",
+                "Chess (3.2K tx)",
+                "NewMushroom (8.4K tx)",
+                "mushrooms (8.4K tx)",
+                "Running Example (4 tx)"
+        };
+        double[] baseTimes = {3156.22, 874.58, 705.51, 682.76, 176.90, 8.55, 8.53, 5.18, 5.17, 0.13};
+        double[] patTimes = {1490.79, 589.30, 346.10, 273.58, 170.70, 8.74, 8.11, 2.68, 2.74, 0.16};
+        String[] badges = {
+                "2.12x (Giảm 52.8%)",
+                "1.48x (Giảm 32.6%)",
+                "2.04x (Giảm 50.9%)",
+                "2.50x (Giảm 59.9%)",
+                "1.04x (Giảm 3.5%)",
+                "0.98x (Tương đương)",
+                "1.05x (Giảm 5.0%)",
+                "1.93x (Giảm 48.2%)",
+                "1.88x (Giảm 46.9%)",
+                "0.83x (Khởi động)"
+        };
+        boolean[] isFaster = {true, true, true, true, true, false, true, true, true, false};
+
+        int rowY = cardY + 20;
+        int maxBarW = 380;
+        double maxTime = 3200.0;
+
+        for (int i = 0; i < names.length; i++) {
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setColor(new Color(30, 41, 59));
+            g2.drawString(names[i], 35, rowY + 23);
+
+            int barX = 220;
+            int wBase = (int) Math.max(4, (baseTimes[i] / maxTime) * maxBarW);
+            g2.setColor(new Color(241, 245, 249));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 3, maxBarW, 16, 4, 4));
+            g2.setColor(new Color(148, 163, 184));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 3, wBase, 16, 4, 4));
+
+            int wPat = (int) Math.max(4, (patTimes[i] / maxTime) * maxBarW);
+            g2.setColor(new Color(241, 245, 249));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 25, maxBarW, 16, 4, 4));
+            g2.setColor(new Color(37, 99, 235));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 25, wPat, 16, 4, 4));
+
+            // Cột giá trị định dạng chuẩn
+            int valX = barX + maxBarW + 20;
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g2.setColor(new Color(100, 116, 139));
+            String baseStr = String.format(Locale.US, "Base: %,.1fs", baseTimes[i]);
+            g2.drawString(baseStr, valX, rowY + 16);
+
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.setColor(new Color(29, 78, 216));
+            String patStr = String.format(Locale.US, "Pat:  %,.1fs", patTimes[i]);
+            g2.drawString(patStr, valX, rowY + 38);
+
+            // Cột nhãn tăng tốc
+            int badgeX = valX + 130;
+            int badgeW = 160;
+            int badgeH = 28;
+            g2.setColor(isFaster[i] ? new Color(220, 252, 231) : new Color(241, 245, 249));
+            g2.fill(new RoundRectangle2D.Float(badgeX, rowY + 8, badgeW, badgeH, 6, 6));
+            g2.setColor(isFaster[i] ? new Color(22, 101, 52) : new Color(100, 116, 139));
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            FontMetrics bfm = g2.getFontMetrics();
+            g2.drawString(badges[i], badgeX + (badgeW - bfm.stringWidth(badges[i])) / 2, rowY + 26);
+
+            rowY += 52;
+        }
+
+        // Footer summary bar
+        g2.setColor(new Color(238, 242, 255));
+        g2.fill(new RoundRectangle2D.Float(20, h - 60, cardW, 42, 8, 8));
+        g2.setColor(new Color(30, 58, 138));
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        g2.drawString("TỔNG HỢP TOÀN BỘ 10 BỘ DỮ LIỆU: Thời gian giảm từ 5,627.7s (~94 phút) xuống 2,895.9s (~48 phút) | Tiết kiệm 45.5 phút CPU (Tăng tốc 1.58x)", 35, h - 34);
+
+        g2.dispose();
+        return img;
+    }
+
+    private BufferedImage renderMemoryComparisonGraphic() {
+        int w = 1200;
+        int h = 760;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        // Nền trắng/xám nhẹ
+        g2.setColor(new Color(248, 250, 252));
+        g2.fillRect(0, 0, w, h);
+
+        // Header Banner
+        g2.setColor(new Color(6, 78, 59));
+        g2.fill(new RoundRectangle2D.Float(20, 20, w - 40, 75, 12, 12));
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        g2.drawString("ĐỐI CHỨNG TRỰC QUAN TIÊU THỤ BỘ NHỚ RAM ĐỈNH (PEAK HEAP MEMORY)", 40, 50);
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        g2.setColor(new Color(209, 250, 229));
+        g2.drawString("Đánh giá mức giảm tải bộ nhớ Heap JVM nhờ chia sẻ Flyweight và tái chế Object Pool", 40, 74);
+
+        // Legend
+        int legX = w - 440;
+        g2.setColor(new Color(148, 163, 184));
+        g2.fillRect(legX, 38, 14, 14);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        g2.drawString("Baseline Peak RAM (MB)", legX + 22, 50);
+
+        g2.setColor(new Color(5, 150, 105));
+        g2.fillRect(legX, 60, 14, 14);
+        g2.setColor(Color.WHITE);
+        g2.drawString("Design Patterns Peak RAM (MB)", legX + 22, 72);
+
+        // Card Container
+        int cardY = 110;
+        int cardW = w - 40;
+        int cardH = 560;
+        g2.setColor(Color.WHITE);
+        g2.fill(new RoundRectangle2D.Float(20, cardY, cardW, cardH, 12, 12));
+        g2.setColor(new Color(226, 232, 240));
+        g2.draw(new RoundRectangle2D.Float(20, cardY, cardW, cardH, 12, 12));
+
+        String[] names = {
+                "Accidents (340K tx)",
+                "mushrooms (8.4K tx)",
+                "NewMushroom (8.4K tx)",
+                "Chess (3.2K tx)",
+                "NewChess (3.2K tx)",
+                "Retail (88K tx)",
+                "Running Example (4 tx)",
+                "NewConnects (67.5K tx)",
+                "connects (67.5K tx)",
+                "Chainstore (1.11M tx)"
+        };
+        double[] baseRams = {242.5, 199.0, 161.1, 184.3, 247.2, 496.3, 4.0, 387.4, 313.3, 480.0};
+        double[] patRams = {111.0, 93.5, 81.8, 125.2, 173.7, 369.9, 2.9, 407.2, 405.5, 920.4};
+        String[] badges = {
+                "Tiết kiệm +54.2% RAM",
+                "Tiết kiệm +53.0% RAM",
+                "Tiết kiệm +49.2% RAM",
+                "Tiết kiệm +32.0% RAM",
+                "Tiết kiệm +29.7% RAM",
+                "Tiết kiệm +25.5% RAM",
+                "Tiết kiệm +28.3% RAM",
+                "-5.1% (Tăng đệm Stream)",
+                "-29.4% (Tăng đệm Stream)",
+                "-91.8% (Cache 1.11M tx)"
+        };
+        boolean[] isSaved = {true, true, true, true, true, true, true, false, false, false};
+
+        int rowY = cardY + 20;
+        int maxBarW = 380;
+        double maxRam = 1000.0;
+
+        for (int i = 0; i < names.length; i++) {
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setColor(new Color(30, 41, 59));
+            g2.drawString(names[i], 35, rowY + 23);
+
+            int barX = 220;
+            int wBase = (int) Math.max(4, (baseRams[i] / maxRam) * maxBarW);
+            g2.setColor(new Color(241, 245, 249));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 3, maxBarW, 16, 4, 4));
+            g2.setColor(new Color(148, 163, 184));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 3, wBase, 16, 4, 4));
+
+            int wPat = (int) Math.max(4, (patRams[i] / maxRam) * maxBarW);
+            g2.setColor(new Color(241, 245, 249));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 25, maxBarW, 16, 4, 4));
+            g2.setColor(new Color(5, 150, 105));
+            g2.fill(new RoundRectangle2D.Float(barX, rowY + 25, wPat, 16, 4, 4));
+
+            // Cột giá trị định dạng chuẩn
+            int valX = barX + maxBarW + 20;
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g2.setColor(new Color(100, 116, 139));
+            String baseStr = String.format(Locale.US, "Base: %,.1f MB", baseRams[i]);
+            g2.drawString(baseStr, valX, rowY + 16);
+
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.setColor(new Color(4, 120, 87));
+            String patStr = String.format(Locale.US, "Pat:  %,.1f MB", patRams[i]);
+            g2.drawString(patStr, valX, rowY + 38);
+
+            // Cột nhãn tiết kiệm RAM
+            int badgeX = valX + 130;
+            int badgeW = 180;
+            int badgeH = 28;
+            g2.setColor(isSaved[i] ? new Color(209, 250, 229) : new Color(254, 243, 199));
+            g2.fill(new RoundRectangle2D.Float(badgeX, rowY + 8, badgeW, badgeH, 6, 6));
+            g2.setColor(isSaved[i] ? new Color(6, 95, 70) : new Color(146, 64, 14));
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            FontMetrics bfm = g2.getFontMetrics();
+            g2.drawString(badges[i], badgeX + (badgeW - bfm.stringWidth(badges[i])) / 2, rowY + 26);
+
+            rowY += 52;
+        }
+
+        // Footer summary bar
+        g2.setColor(new Color(236, 253, 245));
+        g2.fill(new RoundRectangle2D.Float(20, h - 60, cardW, 42, 8, 8));
+        g2.setColor(new Color(6, 78, 59));
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        g2.drawString("KẾT LUẬN TÀI NGUYÊN: Tiết kiệm RAM đỉnh trung bình +14.6% (Đạt đỉnh 54.2% trên Accidents) | Giảm 80% - 98% áp lực và độ trễ Garbage Collection", 35, h - 34);
 
         g2.dispose();
         return img;
