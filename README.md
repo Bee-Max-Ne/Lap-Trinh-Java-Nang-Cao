@@ -1202,9 +1202,6 @@ Các runner kiểm thử thiết kế là chương trình Java độc lập:
 ## Tài liệu tóm tắt thay đổi và kết quả
 
 Các file sau đã được gộp vào một tệp duyệt docs/tomtat.md:
-- quoc.md – mô tả chi tiết việc triển khai 4 mẫu thiết kế mới và kết quả kiểm tra.
-- CODE_CHANGES_SUMMARY.md – tóm tắt các thay đổi code để thêm 4 mẫu thiết kế.
-- GUI_RUN_SUMMARY.md – kết quả chạy ứng dụng GUI sau khi tích hợp các mẫu thiết kế.
 
 Bạn có thể xem tệp tổng hợp tại: [docs/tomtat.md](./docs/tomtat.md)
 
