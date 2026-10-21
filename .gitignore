@@ -29,3 +29,7 @@ sync_*.py
 generate_uml*.py
 test_uml*
 docs/uml_diagrams/
+*.pdf
+pdf_slides_extracted.txt
+docs/report_images/
+extracted_pdf_images/
