@@ -27,6 +27,7 @@ docx_*.py
 sync_*.py
 insert_*.py
 patch_*.py
+fix_*.py
 *_content.txt
 generate_uml*.py
 test_uml*
