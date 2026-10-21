@@ -36,3 +36,8 @@ docs/uml_diagrams/
 pdf_slides_extracted.txt
 docs/report_images/
 extracted_pdf_images/
+
+generate_perfect_slidelai.py
+build_slidelai_complete.py
+slidelai_backup.docx
+slidelai_completed.docx
