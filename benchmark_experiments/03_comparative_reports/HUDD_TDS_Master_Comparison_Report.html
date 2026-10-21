@@ -292,7 +292,7 @@
                         </div>
                         <button type="button" onclick="toggleRuntimeScale()" id="btn-runtime-scale" style="padding: 4px 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px; font-weight: 600; color: #334155; cursor: pointer;">Thang đo: Logarithmic ▾</button>
                     </div>
-                    <div style="position: relative; height: 360px; width: 100%;">
+                    <div style="position: relative; height: 400px; width: 100%;">
                         <canvas id="canvasRuntimeChart"></canvas>
                     </div>
                     <div style="margin-top: 10px; font-size: 11.5px; color: #475569; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border-left: 3px solid #2563eb;">
@@ -309,7 +309,7 @@
                         </div>
                         <span style="font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px;">Tiết kiệm tới 54.2%</span>
                     </div>
-                    <div style="position: relative; height: 360px; width: 100%;">
+                    <div style="position: relative; height: 400px; width: 100%;">
                         <canvas id="canvasRamChart"></canvas>
                     </div>
                     <div style="margin-top: 10px; font-size: 11.5px; color: #475569; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border-left: 3px solid #059669;">
@@ -639,10 +639,18 @@
     <!-- TÍCH HỢP CHART.JS & MÃ ĐIỀU KHIỂN BIỂU ĐỒ -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Dữ liệu đo đạc thực nghiệm trên 10 bộ dữ liệu
+        // Dữ liệu đo đạc thực nghiệm trên 10 bộ dữ liệu (nhãn 2 dòng để hiển thị ngang hoàn toàn, không bị nghiêng)
         const dsLabels = [
-            'Running Example', 'Chess', 'NewChess', 'Mushrooms', 'NewMushroom',
-            'Connects', 'NewConnects', 'Retail', 'Accidents', 'Chainstore'
+            ['Running', 'Example'],
+            'Chess',
+            ['New', 'Chess'],
+            'Mushrooms',
+            ['New', 'Mushroom'],
+            'Connects',
+            ['New', 'Connects'],
+            'Retail',
+            'Accidents',
+            'Chainstore'
         ];
         const runtimeBase = [0.13, 8.53, 8.55, 5.17, 5.18, 682.76, 705.51, 176.90, 3156.22, 874.58];
         const runtimePat  = [0.16, 8.11, 8.74, 2.74, 2.68, 273.58, 346.10, 170.70, 1490.79, 589.30];
@@ -693,12 +701,28 @@
                     scales: {
                         y: {
                             type: isRuntimeLog ? 'logarithmic' : 'linear',
-                            title: { display: true, text: isRuntimeLog ? 'Thời gian (Giây - Thang Log10)' : 'Thời gian (Giây - Tuyến tính)' },
-                            grid: { color: '#f1f5f9' }
+                            title: { display: true, text: isRuntimeLog ? 'Thời gian (Giây - Thang Log10)' : 'Thời gian (Giây - Tuyến tính)', font: { weight: '600', size: 12 } },
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(value) {
+                                    if (!isRuntimeLog) return value >= 1 ? value.toLocaleString() + 's' : value + 's';
+                                    if (value === 0.1 || value === 1 || value === 10 || value === 100 || value === 1000 || value === 3000) {
+                                        return value >= 1 ? value.toLocaleString() + 's' : value + 's';
+                                    }
+                                    return null;
+                                }
+                            }
                         },
                         x: {
                             grid: { display: false },
-                            ticks: { maxRotation: 45, minRotation: 30, font: { size: 11, weight: '600' } }
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                minRotation: 0,
+                                color: '#1e293b',
+                                font: { size: 11, weight: '600' },
+                                padding: 6
+                            }
                         }
                     },
                     plugins: {
@@ -752,13 +776,25 @@
                     maintainAspectRatio: false,
                     scales: {
                         y: {
-                            title: { display: true, text: 'Bộ nhớ Heap đỉnh (MB)' },
+                            title: { display: true, text: 'Bộ nhớ Heap đỉnh (MB)', font: { weight: '600', size: 12 } },
                             grid: { color: '#f1f5f9' },
-                            beginAtZero: true
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + ' MB';
+                                }
+                            }
                         },
                         x: {
                             grid: { display: false },
-                            ticks: { maxRotation: 45, minRotation: 30, font: { size: 11, weight: '600' } }
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                minRotation: 0,
+                                color: '#1e293b',
+                                font: { size: 11, weight: '600' },
+                                padding: 6
+                            }
                         }
                     },
                     plugins: {
