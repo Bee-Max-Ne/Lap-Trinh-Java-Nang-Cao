@@ -478,6 +478,10 @@ public class HUDD_TDS_GUI extends JFrame {
         processLogPanel.add(new JScrollPane(processLogArea), BorderLayout.CENTER);
         tabbedPane.addTab("Nhật ký tiến trình", processLogPanel);
 
+        // TAB 6: ĐỐI SÁNH DESIGN PATTERNS (MASTER BENCHMARK)
+        MasterBenchmarkPanel masterBenchmarkPanel = new MasterBenchmarkPanel();
+        tabbedPane.addTab("📊 Đối sánh Design Patterns", masterBenchmarkPanel);
+
         // BIỂU ĐỒ NÂNG CAO (CHART PANEL)
         JPanel chartContainer = new JPanel(new BorderLayout(3, 3));
         chartContainer.setBorder(BorderFactory.createTitledBorder("Đồ thị biến thiên trực quan"));
@@ -498,11 +502,36 @@ public class HUDD_TDS_GUI extends JFrame {
 
         chartPanel = new ChartPanel();
         chartContainer.add(chartPanel, BorderLayout.CENTER);
-        chartContainer.setPreferredSize(new Dimension(460, 300));
+        chartContainer.setPreferredSize(new Dimension(450, 300));
+        chartContainer.setMinimumSize(new Dimension(380, 200));
+        tabbedPane.setMinimumSize(new Dimension(520, 200));
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tabbedPane, chartContainer);
-        splitPane.setResizeWeight(0.60);
+        splitPane.setResizeWeight(0.58);
+        splitPane.setContinuousLayout(true);
         add(splitPane, BorderLayout.CENTER);
+
+        // Ẩn đồ thị biến thiên luồng riêng biệt khi xem Tab "Đối sánh Design Patterns"
+        tabbedPane.addChangeListener(e -> {
+            int idx = tabbedPane.getSelectedIndex();
+            if (idx >= 0) {
+                String tabTitle = tabbedPane.getTitleAt(idx);
+                boolean isBenchmarkTab = tabTitle.contains("Đối sánh Design Patterns");
+                if (isBenchmarkTab) {
+                    chartContainer.setVisible(false);
+                    chartContainer.setMinimumSize(new Dimension(0, 0));
+                    splitPane.setDividerSize(0);
+                    splitPane.setDividerLocation(1.0);
+                } else {
+                    chartContainer.setVisible(true);
+                    chartContainer.setMinimumSize(new Dimension(380, 200));
+                    splitPane.setDividerSize(8);
+                    splitPane.setDividerLocation(0.58);
+                }
+                splitPane.revalidate();
+                splitPane.repaint();
+            }
+        });
 
         // =========================================================================
         // 3. CHI TIẾT TOÁN HỌC & KIỂM ĐỊNH PHÍA NAM (SOUTH PANEL)

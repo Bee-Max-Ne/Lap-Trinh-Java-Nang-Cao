@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>MẪU THIẾT KẾ #08: CHAIN OF RESPONSIBILITY PATTERN</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F5F3EE;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="p-4 flex items-center justify-center">
+  <!-- Sized container for crisp export -->
+  <div style="width: 920px; height: 560px;" class="bg-white rounded-2xl border-2 border-slate-300 p-5 shadow-xl flex flex-col justify-between">
+    <!-- Header -->
+    <div class="flex items-start justify-between border-b-2 border-slate-100 pb-2.5 mb-2">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-indigo-100 text-indigo-900 border border-indigo-200">
+            TẦNG 4: DATA PIPELINE LAYER
+          </span>
+          <span class="text-[11px] font-bold text-slate-500 font-mono">HUDD-TDS ARCHITECTURE</span>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 tracking-tight">
+          MẪU THIẾT KẾ #08: CHAIN OF RESPONSIBILITY PATTERN
+        </h2>
+        <div class="text-xs text-slate-500 mt-0.5">
+          Chuỗi Đường Ống Phân Tích Cú Pháp Dữ Liệu Đa Định Dạng (Data Parsing Pipeline)
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md shadow-2xs">
+          Dễ Dàng Mở Rộng Thêm Định Dạng Mới (OCP)
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 my-1">
+      
+        <div class="h-full flex flex-col justify-between">
+          <!-- Input Header -->
+          <div class="flex items-center justify-between border-b border-slate-200 pb-1.5">
+            <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">
+              Luồng đầu vào: Chuỗi văn bản thô (Raw String Stream) từ File / Socket
+            </span>
+            <span class="text-xs font-mono font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-300">
+              TransactionParsingPipeline
+            </span>
+          </div>
+
+          <!-- Pipeline Stages Flow -->
+          <div class="grid grid-cols-12 gap-2 my-auto items-center">
+            
+            <!-- Raw Input Box -->
+            <div class="col-span-3 bg-slate-100 border-2 border-slate-300 rounded-xl p-2.5 shadow-xs text-center">
+              <div class="text-[10px] uppercase font-bold text-slate-500">Đầu vào thô</div>
+              <div class="font-mono text-xs font-bold text-slate-800 mt-1 truncate">"1 2 3:15:35"</div>
+              <div class="text-[10px] text-slate-500 mt-1">Dòng dữ liệu từ tệp</div>
+            </div>
+
+            <!-- Arrow 1 -->
+            <div class="col-span-1 text-center font-bold text-indigo-600 text-sm">➔</div>
+
+            <!-- Handler 1 -->
+            <div class="col-span-2 bg-blue-50 border-2 border-blue-400 rounded-xl p-2.5 shadow-xs text-center flex flex-col justify-between h-32">
+              <div class="text-[10px] font-bold text-blue-800 uppercase">Trạm 1: Lọc Dòng</div>
+              <div class="font-mono text-[11px] font-bold text-blue-950 mt-1">EmptyAndComment FilterHandler</div>
+              <div class="text-[9px] text-slate-500 mt-1">Bỏ qua dòng trống hoặc bắt đầu bằng '#'</div>
+            </div>
+
+            <!-- Arrow 2 -->
+            <div class="col-span-1 text-center font-bold text-indigo-600 text-sm">➔</div>
+
+            <!-- Handler 2 -->
+            <div class="col-span-2 bg-indigo-50 border-2 border-indigo-400 rounded-xl p-2.5 shadow-xs text-center flex flex-col justify-between h-32">
+              <div class="text-[10px] font-bold text-indigo-800 uppercase">Trạm 2: SPMF Chuẩn</div>
+              <div class="font-mono text-[11px] font-bold text-indigo-950 mt-1">SpmfFormat Handler</div>
+              <div class="text-[9px] text-slate-500 mt-1">Khớp cú pháp item:utility:trans_utility</div>
+            </div>
+
+            <!-- Arrow 3 -->
+            <div class="col-span-1 text-center font-bold text-indigo-600 text-sm">➔</div>
+
+            <!-- Handler 3 -->
+            <div class="col-span-2 bg-purple-50 border-2 border-purple-400 rounded-xl p-2.5 shadow-xs text-center flex flex-col justify-between h-32">
+              <div class="text-[10px] font-bold text-purple-800 uppercase">Trạm 3: Legacy Format</div>
+              <div class="font-mono text-[11px] font-bold text-purple-950 mt-1">LegacyFormat Handler</div>
+              <div class="text-[9px] text-slate-500 mt-1">Khớp cú pháp giao dịch cũ tùy biến</div>
+            </div>
+
+          </div>
+
+          <!-- Two Possible Outcomes (Success vs Failure) -->
+          <div class="grid grid-cols-12 gap-3 items-stretch">
+            <div class="col-span-8 bg-emerald-50 border-2 border-emerald-400 rounded-xl p-2.5 shadow-xs flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                <div>
+                  <div class="text-xs font-bold text-emerald-900">Nếu 1 trạm xử lý thành công:</div>
+                  <div class="text-[11px] text-slate-600 font-sans">Đóng gói và trả về ngay đối tượng <code class="font-mono font-bold text-emerald-800 bg-white px-1 rounded">Transaction</code> chuẩn cho hệ thống.</div>
+                </div>
+              </div>
+              <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-1 rounded border border-emerald-300">return Transaction</span>
+            </div>
+
+            <div class="col-span-4 bg-red-50 border-2 border-red-300 rounded-xl p-2.5 shadow-xs flex items-center justify-between">
+              <div>
+                <div class="text-xs font-bold text-red-900">Nếu hết chuỗi không khớp:</div>
+                <div class="text-[10px] text-red-700">Ném ngoại lệ kiểm tra</div>
+              </div>
+              <span class="text-[10px] font-mono font-bold text-red-800 bg-red-100 px-1.5 py-1 rounded border border-red-200">ParseException</span>
+            </div>
+          </div>
+        </div>
+        
+    </div>
+
+    <!-- Footer Note -->
+    <div class="border-t border-slate-100 pt-2 flex items-center justify-between text-[11px] text-slate-500">
+      <div class="flex items-center gap-1.5 font-medium">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        <span>Sơ đồ kiến trúc & luồng vận hành kỹ thuật — Đề tài HUDD-TDS</span>
+      </div>
+      <div class="font-mono text-slate-400">Khóa luận Tốt nghiệp CNTT</div>
+    </div>
+  </div>
+</body>
+</html>

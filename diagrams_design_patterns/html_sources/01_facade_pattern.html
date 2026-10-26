@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>MẪU THIẾT KẾ #01: FACADE PATTERN</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F5F3EE;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="p-4 flex items-center justify-center">
+  <!-- Sized container for crisp export -->
+  <div style="width: 920px; height: 560px;" class="bg-white rounded-2xl border-2 border-slate-300 p-5 shadow-xl flex flex-col justify-between">
+    <!-- Header -->
+    <div class="flex items-start justify-between border-b-2 border-slate-100 pb-2.5 mb-2">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-indigo-100 text-indigo-900 border border-indigo-200">
+            TẦNG 2: APPLICATION LAYER
+          </span>
+          <span class="text-[11px] font-bold text-slate-500 font-mono">HUDD-TDS ARCHITECTURE</span>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 tracking-tight">
+          MẪU THIẾT KẾ #01: FACADE PATTERN
+        </h2>
+        <div class="text-xs text-slate-500 mt-0.5">
+          Kiến trúc Bao Đóng Hệ Thống Con & Đơn Điểm Truy Cập (Single Entry Point)
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md shadow-2xs">
+          Giảm 100% Khớp Nối (Loose Coupling)
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 my-1">
+      
+        <div class="h-full flex flex-col justify-between">
+          <!-- Top Client -->
+          <div class="bg-blue-50 border-2 border-blue-400 rounded-xl p-3 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow">🖥</div>
+              <div>
+                <div class="text-xs font-bold uppercase text-blue-700 tracking-wider">Tầng 1: Presentation Layer (Client)</div>
+                <div class="text-sm font-bold text-slate-800 font-mono">HUDD_TDS_GUI & ChartPanel</div>
+              </div>
+            </div>
+            <span class="text-xs font-mono font-semibold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md border border-blue-300">Giao diện người dùng</span>
+          </div>
+
+          <!-- Arrow Down -->
+          <div class="flex flex-col items-center justify-center -my-1 text-indigo-600 font-bold text-xs">
+            <div class="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full shadow-xs">
+              <span>↓</span> Giao tiếp độc quyền qua 1 cổng API thống nhất <span>↓</span>
+            </div>
+          </div>
+
+          <!-- Central Facade -->
+          <div class="bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border-2 border-purple-500 rounded-xl p-3.5 shadow-md">
+            <div class="flex items-center justify-between border-b border-purple-200 pb-2 mb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-purple-600 animate-pulse"></span>
+                <span class="font-mono text-base font-bold text-purple-900">SimulationFacade (Cửa ngõ Hệ thống)</span>
+              </div>
+              <span class="text-xs bg-purple-200 text-purple-900 font-bold px-2 py-0.5 rounded">Design Pattern: Facade</span>
+            </div>
+            <div class="grid grid-cols-4 gap-2 text-xs font-mono">
+              <div class="bg-white p-2 rounded border border-purple-200 text-purple-950 font-semibold text-center shadow-xs">
+                startSimulation()
+              </div>
+              <div class="bg-white p-2 rounded border border-purple-200 text-purple-950 font-semibold text-center shadow-xs">
+                stopSimulation()
+              </div>
+              <div class="bg-white p-2 rounded border border-purple-200 text-purple-950 font-semibold text-center shadow-xs">
+                resetSimulation()
+              </div>
+              <div class="bg-white p-2 rounded border border-purple-200 text-purple-950 font-semibold text-center shadow-xs">
+                exportResults()
+              </div>
+            </div>
+          </div>
+
+          <!-- Subsystem Boundary -->
+          <div class="border-2 border-dashed border-slate-300 rounded-xl p-3 bg-slate-50/80">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                Bao đóng ranh giới hệ thống con (Encapsulated Subsystems)
+              </span>
+              <span class="text-[11px] text-slate-400 italic">GUI hoàn toàn không biết chi tiết các lớp bên dưới</span>
+            </div>
+            <div class="grid grid-cols-4 gap-2 text-xs font-mono">
+              <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-between">
+                <span class="font-bold text-slate-800">DatasetService</span>
+                <span class="text-[10px] text-slate-500 font-sans mt-1">Đọc & cung cấp luồng giao dịch stream</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-between">
+                <span class="font-bold text-slate-800">DatasetValidator</span>
+                <span class="text-[10px] text-slate-500 font-sans mt-1">Kiểm định ma trận trọng số & tính hợp lệ</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs flex flex-col justify-between">
+                <span class="font-bold text-slate-800">TransactionParser</span>
+                <span class="text-[10px] text-slate-500 font-sans mt-1">Phân tích cú pháp chuỗi thành Object</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-lg border border-purple-200 shadow-xs flex flex-col justify-between bg-purple-50/40">
+                <span class="font-bold text-purple-900">HUDD_TDS Engine</span>
+                <span class="text-[10px] text-purple-700 font-sans mt-1">Lõi tính toán khai phá & kiểm định trôi dạt</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+    </div>
+
+    <!-- Footer Note -->
+    <div class="border-t border-slate-100 pt-2 flex items-center justify-between text-[11px] text-slate-500">
+      <div class="flex items-center gap-1.5 font-medium">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        <span>Sơ đồ kiến trúc & luồng vận hành kỹ thuật — Đề tài HUDD-TDS</span>
+      </div>
+      <div class="font-mono text-slate-400">Khóa luận Tốt nghiệp CNTT</div>
+    </div>
+  </div>
+</body>
+</html>

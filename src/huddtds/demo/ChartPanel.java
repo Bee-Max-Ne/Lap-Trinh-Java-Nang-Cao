@@ -200,10 +200,19 @@ public class ChartPanel extends JPanel {
         int height = getHeight();
 
         int paddingLeft = 65;
-        int paddingTop = 35;
         int paddingRight = 25;
         int paddingBottom = 48;
 
+        // Tiêu đề & Chú giải chống đè chữ
+        String titleStr = (metricMode == MetricMode.GLOBAL_DISTANCE) ? "DISHS (log scale)" : metricMode.getTitle();
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        FontMetrics tfm = g2.getFontMetrics();
+        int titleWidth = tfm.stringWidth(titleStr);
+
+        int totalLegendW = getLegendTotalWidth(g2);
+        boolean isWideEnough = (width - paddingRight - totalLegendW >= paddingLeft + titleWidth + 15);
+
+        int paddingTop = isWideEnough ? 36 : 50;
         int plotWidth = width - paddingLeft - paddingRight;
         int plotHeight = height - paddingTop - paddingBottom;
 
@@ -211,13 +220,19 @@ public class ChartPanel extends JPanel {
         g2.setColor(new Color(248, 250, 253));
         g2.fillRect(0, 0, width, height);
 
-        // Tiêu đề đồ thị
+        // Vẽ Tiêu đề & Chú giải (Legend)
         g2.setColor(new Color(30, 41, 59));
         g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        g2.drawString(metricMode == MetricMode.GLOBAL_DISTANCE ? metricMode.getTitle() + " (log scale)" : metricMode.getTitle(), paddingLeft, 22);
 
-        // Chú giải (Legend) ở góc trên phải
-        drawLegend(g2, width - paddingRight, 12);
+        if (isWideEnough) {
+            // Khi đủ chiều rộng: Tiêu đề bên trái, Chú giải bên phải
+            g2.drawString(titleStr, paddingLeft, 22);
+            drawLegend(g2, width - paddingRight - totalLegendW, 12);
+        } else {
+            // Khi bị co hẹp: Tách 2 tầng độc lập, tuyệt đối không đè nhau
+            g2.drawString(titleStr, paddingLeft, 16);
+            drawLegend(g2, paddingLeft, 24);
+        }
 
         List<Checkpoint> snapshot;
         Set<Integer> driftSnapshot;
@@ -542,57 +557,59 @@ public class ChartPanel extends JPanel {
         g2.dispose();
     }
 
-    private void drawLegend(Graphics2D g2, int rightEdgeX, int y) {
+    private String getNormalText() {
+        return switch (metricMode) {
+            case GLOBAL_DISTANCE -> "DISHS (Ổn định)";
+            case HUI_COUNT -> "Số lượng HUI";
+            case BAR_HUI_COUNT -> "HUI khi Ổn định";
+            case RAM_USAGE -> "RAM (Ổn định)";
+            case THROUGHPUT -> "Tốc độ (Ổn định)";
+            default -> "Ổn định";
+        };
+    }
+
+    private String getDriftText() {
+        return switch (metricMode) {
+            case GLOBAL_DISTANCE -> "Trôi dạt toàn cục";
+            case HUI_COUNT -> "Mốc có Drift";
+            case BAR_HUI_COUNT -> "HUI khi Trôi dạt";
+            case RAM_USAGE -> "RAM khi có Drift";
+            case THROUGHPUT -> "Tốc độ khi có Drift";
+            default -> "Trôi dạt";
+        };
+    }
+
+    private int getLegendTotalWidth(Graphics2D g2) {
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        FontMetrics fm = g2.getFontMetrics();
+        int symbolSize = 8;
+        int gap = 5;
+        int spacing = 12;
+        int item1W = symbolSize + gap + fm.stringWidth(getNormalText());
+        int item2W = symbolSize + gap + fm.stringWidth(getDriftText());
+        return item1W + spacing + item2W;
+    }
+
+    private void drawLegend(Graphics2D g2, int startX, int y) {
         g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
         FontMetrics fm = g2.getFontMetrics();
 
-        Color normalColor;
-        String normalText;
+        Color normalColor = switch (metricMode) {
+            case GLOBAL_DISTANCE, HUI_COUNT -> new Color(37, 99, 235);
+            case BAR_HUI_COUNT -> new Color(59, 130, 246);
+            case RAM_USAGE -> new Color(5, 150, 105);
+            case THROUGHPUT -> new Color(126, 34, 206);
+            default -> new Color(37, 99, 235);
+        };
+        String normalText = getNormalText();
         Color driftColor = new Color(220, 38, 38);
-        String driftText;
+        String driftText = getDriftText();
         boolean isBar = (metricMode == MetricMode.BAR_HUI_COUNT);
-
-        switch (metricMode) {
-            case GLOBAL_DISTANCE -> {
-                normalColor = new Color(37, 99, 235);
-                normalText = "DISHS (Ổn định)";
-                driftText = "Trôi dạt toàn cục";
-            }
-            case HUI_COUNT -> {
-                normalColor = new Color(37, 99, 235);
-                normalText = "Số lượng HUI";
-                driftText = "Mốc có Drift";
-            }
-            case BAR_HUI_COUNT -> {
-                normalColor = new Color(59, 130, 246);
-                normalText = "HUI khi Ổn định";
-                driftText = "HUI khi Trôi dạt";
-            }
-            case RAM_USAGE -> {
-                normalColor = new Color(5, 150, 105);
-                normalText = "RAM Heap (Ổn định)";
-                driftText = "RAM khi có Drift";
-            }
-            case THROUGHPUT -> {
-                normalColor = new Color(126, 34, 206);
-                normalText = "Tốc độ (Ổn định)";
-                driftText = "Tốc độ khi có Drift";
-            }
-            default -> {
-                normalColor = new Color(37, 99, 235);
-                normalText = "Ổn định";
-                driftText = "Trôi dạt";
-            }
-        }
 
         int symbolSize = 8;
         int gap = 5;
         int item1W = symbolSize + gap + fm.stringWidth(normalText);
-        int item2W = symbolSize + gap + fm.stringWidth(driftText);
         int spacing = 12;
-        int totalW = item1W + spacing + item2W;
-
-        int startX = rightEdgeX - totalW;
 
         // Vẽ Item 1 (Normal)
         g2.setColor(normalColor);

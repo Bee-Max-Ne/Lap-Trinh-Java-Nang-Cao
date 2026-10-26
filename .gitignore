@@ -47,4 +47,9 @@ insert_images_only.py
 update_real_diagrams_only.py
 
 update_master_report_charts.py
-benchmark_experiments/03_comparative_reports/HUDD_TDS_Master_Comparison_Report_backup.html
+benchmark_experiments/03_comparative_reports/*backup*.html
+inspect_*.py
+generate_deck.py
+generate_html_slides.py
+scratch/
+slides_presentation.html

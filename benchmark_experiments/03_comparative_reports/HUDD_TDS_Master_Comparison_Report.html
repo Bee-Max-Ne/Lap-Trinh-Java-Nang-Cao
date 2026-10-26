@@ -271,7 +271,7 @@
         <div class="section-title" style="justify-content: space-between; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 22px;">📊</span>
-                <span style="color: #1e3a8a;">TỔNG HỢP 2 BIỂU ĐỒ ĐỐI CHUẨN: RUNTIME & TIÊU THỤ RAM HEAP (10 DATASETS)</span>
+                <span style="color: #1e3a8a;">TỔNG HỢP 5 BIỂU ĐỒ ĐỐI CHUẨN KHOA HỌC: RUNTIME, TIÊU THỤ RAM, GC CALLS, GC PAUSE & THÔNG LƯỢNG TPS (10 DATASETS)</span>
             </div>
             <div style="display: flex; gap: 8px; margin-top: 4px;">
                 <button type="button" class="btn-tab active" onclick="switchChartView('interactive')" id="btn-tab-interactive" style="padding: 6px 14px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">📊 Biểu đồ Tương tác (Interactive)</button>
@@ -291,6 +291,7 @@
                             <p style="font-size: 12.5px; color: #64748b;">Đơn vị: Giây (s) — Cột thấp hơn là tốt hơn (Nhanh hơn)</p>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" onclick="toggleDataLabels()" class="btn-toggle-labels" style="padding: 5px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #166534; cursor: pointer;">🔢 Số liệu: BẬT ✓</button>
                             <button type="button" onclick="toggleRuntimeType()" id="btn-runtime-type" style="padding: 5px 12px; background: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #3730a3; cursor: pointer;">Dạng: 📊 Cột (Bar)</button>
                             <button type="button" onclick="toggleRuntimeScale()" id="btn-runtime-scale" style="padding: 5px 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #334155; cursor: pointer;">Thang đo: Logarithmic ▾</button>
                         </div>
@@ -320,6 +321,69 @@
                     </div>
                     <div style="margin-top: 12px; font-size: 12.5px; color: #475569; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #059669;">
                         <b>Điểm nhấn:</b> <b>Object Pool & Flyweight</b> triệt tiêu việc cấp phát lặp lại, tiết kiệm hơn <b>131 MB RAM</b> ở Accidents và giảm hơn <b>50%</b> ở Mushrooms.
+                    </div>
+                </div>
+
+                <!-- BIỂU ĐỒ 3: SỐ LẦN THU GOM RÁC (GC CALLS) -->
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h3 style="font-size: 16px; font-weight: 700; color: #d97706;">♻️ 3. Áp Lực Thu Gom Rác (Garbage Collection Calls)</h3>
+                            <p style="font-size: 12.5px; color: #64748b;">Đơn vị: Số lần kích hoạt GC (Lần) — Cột thấp hơn là tối ưu hơn (Ít áp lực rác hơn)</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" onclick="toggleGcCallsType()" id="btn-gccalls-type" style="padding: 5px 12px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #92400e; cursor: pointer;">Dạng: 📊 Cột (Bar)</button>
+                            <button type="button" onclick="toggleGcCallsScale()" id="btn-gccalls-scale" style="padding: 5px 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #334155; cursor: pointer;">Thang đo: Logarithmic ▾</button>
+                            <span style="font-size: 11.5px; font-weight: 700; background: #fef3c7; color: #b45309; padding: 5px 10px; border-radius: 6px;">Giảm tới 98.4% GC</span>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 420px; width: 100%;">
+                        <canvas id="canvasGcCallsChart"></canvas>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 12.5px; color: #475569; background: #fffbeb; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #d97706;">
+                        <b>Điểm nhấn đột phá:</b> <b>Object Pool Pattern</b> triệt tiêu tới <b>98.4% số lần kích hoạt GC</b> trên tập dữ liệu dày đặc Accidents (từ 15,600 lần xuống chỉ còn 247 lần) và giảm <b>95.3%</b> ở Connects (từ 6,466 xuống 304 lần), ngăn ngừa hoàn toàn hiện tượng bão hòa Heap và Full GC.
+                    </div>
+                </div>
+
+                <!-- BIỂU ĐỒ 4: TỔNG THỜI GIAN DỪNG THU GOM RÁC (GC PAUSE TIME) -->
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h3 style="font-size: 16px; font-weight: 700; color: #e11d48;">⏳ 4. Tổng Thời Gian Dừng GC (GC Pause Overhead)</h3>
+                            <p style="font-size: 12.5px; color: #64748b;">Đơn vị: Miligiây (ms) — Cột thấp hơn là tối ưu hơn (Ít thời gian dừng Stop-The-World hơn)</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" onclick="toggleGcPauseType()" id="btn-gcpause-type" style="padding: 5px 12px; background: #ffe4e6; border: 1px solid #fecdd3; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #9f1239; cursor: pointer;">Dạng: 📊 Cột (Bar)</button>
+                            <button type="button" onclick="toggleGcPauseScale()" id="btn-gcpause-scale" style="padding: 5px 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #334155; cursor: pointer;">Thang đo: Logarithmic ▾</button>
+                            <span style="font-size: 11.5px; font-weight: 700; background: #ffe4e6; color: #be123c; padding: 5px 10px; border-radius: 6px;">Tiết kiệm 11.5s CPU</span>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 420px; width: 100%;">
+                        <canvas id="canvasGcPauseChart"></canvas>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 12.5px; color: #475569; background: #fff1f2; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #e11d48;">
+                        <b>Điểm nhấn thực nghiệm:</b> Tổng thời gian dừng GC (Stop-The-World) giảm tới <b>91.0%</b> trên Accidents (từ 12.68s xuống 1.14s - tiết kiệm <b>11.54 giây</b> đóng băng CPU) và giảm <b>86.2%</b> trên Connects (5,090ms ➔ 703ms), giúp thuật toán duy trì độ phản hồi liên tục và ổn định trên luồng dữ liệu lớn.
+                    </div>
+                </div>
+
+                <!-- BIỂU ĐỒ 5: THÔNG LƯỢNG XỬ LÝ (THROUGHPUT - TRANSACTIONS PER SECOND) -->
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h3 style="font-size: 16px; font-weight: 700; color: #7c3aed;">🚀 5. Thông Lượng Xử Lý Giao Dịch (Throughput TPS)</h3>
+                            <p style="font-size: 12.5px; color: #64748b;">Đơn vị: Transactions / Giây (tx/s) — Cột cao hơn là tốt hơn (Hiệu suất xử lý lớn hơn)</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" onclick="toggleThroughputType()" id="btn-throughput-type" style="padding: 5px 12px; background: #ede9fe; border: 1px solid #ddd6fe; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #5b21b6; cursor: pointer;">Dạng: 📊 Cột (Bar)</button>
+                            <button type="button" onclick="toggleThroughputScale()" id="btn-throughput-scale" style="padding: 5px 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #334155; cursor: pointer;">Thang đo: Logarithmic ▾</button>
+                            <span style="font-size: 11.5px; font-weight: 700; background: #ede9fe; color: #6d28d9; padding: 5px 10px; border-radius: 6px;">Tăng tới 2.51x TPS</span>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 420px; width: 100%;">
+                        <canvas id="canvasThroughputChart"></canvas>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 12.5px; color: #475569; background: #f5f3ff; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #7c3aed;">
+                        <b>Điểm nhấn:</b> Thông lượng xử lý giao dịch (TPS) tăng gấp <b>2.51 lần</b> trên Connects (từ 98 lên 246 tx/s) và <b>2.13 lần</b> trên Accidents (từ 107 lên 228 tx/s), đồng thời đạt đỉnh <b>3,137 giao dịch/giây</b> trên NewMushroom.
                     </div>
                 </div>
 
@@ -640,6 +704,380 @@
             <div class="bar-text" style="color:#059669;">Pat: 920.4 MB (--91.8%)</div>
         </div>
     </div>
+
+    <!-- PHẦN BỔ SUNG 1: BẢNG 5.3 CHI TIẾT GARBAGE COLLECTION -->
+    <div class="section" id="gc-details-table-section">
+        <div class="section-title">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 22px;">♻️</span>
+                <span>BẢNG 5.3: THỐNG KÊ CHI TIẾT ÁP LỰC GARBAGE COLLECTION TRÊN 10 DATASETS</span>
+            </div>
+            <span style="font-size: 12px; font-weight: normal; color: #64748b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px;">Nguồn: Luận văn Báo cáo Cuối kỳ - Bảng 11</span>
+        </div>
+        <p style="font-size: 13.5px; color: #475569; margin-bottom: 16px; line-height: 1.6;">
+            Bảng dưới đây thống kê số lần kích hoạt trình thu gom rác (GC Calls) và tổng thời gian hệ thống bị dừng do GC (GC Pause Time - ms). Các số liệu chứng minh kiến trúc <b>Object Pool Pattern</b> và <b>Flyweight Pattern</b> đã giải phóng JVM khỏi tình trạng bão hòa rác trên Heap:
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 45px;">STT</th>
+                    <th>Bộ Dữ Liệu</th>
+                    <th style="text-align: right;">GC Calls (Base)</th>
+                    <th style="text-align: right;">GC Calls (Pattern)</th>
+                    <th style="text-align: center;">% Giảm Số Lần GC</th>
+                    <th style="text-align: right;">Thời Gian Dừng (Base)</th>
+                    <th style="text-align: right;">Thời Gian Dừng (Pattern)</th>
+                    <th style="text-align: center;">% Giảm Độ Trễ GC</th>
+                    <th>Cơ Chế Tối Ưu Chính</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td><b>Running Example</b></td>
+                    <td style="text-align: right;">2</td>
+                    <td style="text-align: right;"><b>2</b></td>
+                    <td style="text-align: center;"><span class="badge badge-blue">0.0%</span></td>
+                    <td style="text-align: right;">2 ms</td>
+                    <td style="text-align: right;"><b>1 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">-50.0%</span></td>
+                    <td>Mẫu dữ liệu cực nhỏ, số lần GC tối thiểu</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td><b>Chess-metadata</b></td>
+                    <td style="text-align: right;">70</td>
+                    <td style="text-align: right;"><b>57</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">-18.6%</span></td>
+                    <td style="text-align: right;">198 ms</td>
+                    <td style="text-align: right;"><b>119 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">-39.9%</span></td>
+                    <td>Object Pool tái sử dụng node danh sách liên kết</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td><b>NewChess-metadata</b></td>
+                    <td style="text-align: right;">64</td>
+                    <td style="text-align: right;"><b>64</b></td>
+                    <td style="text-align: center;"><span class="badge badge-blue">0.0%</span></td>
+                    <td style="text-align: right;">201 ms</td>
+                    <td style="text-align: right;"><b>145 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">-27.9%</span></td>
+                    <td>Flyweight cache các đối tượng item phổ biến</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td><b>Mushrooms-metadata</b></td>
+                    <td style="text-align: right;">46</td>
+                    <td style="text-align: right;"><b>13</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">-71.7%</span></td>
+                    <td style="text-align: right;">124 ms</td>
+                    <td style="text-align: right;"><b>55 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">-55.6%</span></td>
+                    <td>Giảm 71.7% số lần GC, thời gian dừng giảm hơn một nửa</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td><b>NewMushroom-metadata</b></td>
+                    <td style="text-align: right;">47</td>
+                    <td style="text-align: right;"><b>13</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">-72.3%</span></td>
+                    <td style="text-align: right;">130 ms</td>
+                    <td style="text-align: right;"><b>62 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">-52.3%</span></td>
+                    <td>Template Method loại bỏ cấp phát mảng tạm liên tục</td>
+                </tr>
+                <tr style="background: #f0fdf4;">
+                    <td>6</td>
+                    <td><b>Connects-metadata</b></td>
+                    <td style="text-align: right; color: #dc2626;">6,466</td>
+                    <td style="text-align: right; color: #15803d;"><b>304</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #15803d; color: white; font-weight: 700;">-95.3%</span></td>
+                    <td style="text-align: right; color: #dc2626;">5,090 ms</td>
+                    <td style="text-align: right; color: #15803d;"><b>703 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #15803d; color: white; font-weight: 700;">-86.2%</span></td>
+                    <td><b>Đột phá:</b> Cắt giảm hơn 6,100 lần GC; tiết kiệm 4.38 giây đóng băng</td>
+                </tr>
+                <tr style="background: #f0fdf4;">
+                    <td>7</td>
+                    <td><b>NewConnects-metadata</b></td>
+                    <td style="text-align: right; color: #dc2626;">6,539</td>
+                    <td style="text-align: right; color: #15803d;"><b>433</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #15803d; color: white; font-weight: 700;">-93.4%</span></td>
+                    <td style="text-align: right; color: #dc2626;">5,209 ms</td>
+                    <td style="text-align: right; color: #15803d;"><b>940 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #15803d; color: white; font-weight: 700;">-81.9%</span></td>
+                    <td>Triệt tiêu hiện tượng dồn ứ đối tượng ngắn hạn trong Gen-0</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td><b>Retail-metadata</b></td>
+                    <td style="text-align: right;">1,727</td>
+                    <td style="text-align: right;"><b>533</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">-69.1%</span></td>
+                    <td style="text-align: right;">2,573 ms</td>
+                    <td style="text-align: right;"><b>1,075 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">-58.2%</span></td>
+                    <td>Dữ liệu thưa (sparse) - Tái sử dụng buffer qua Object Pool</td>
+                </tr>
+                <tr style="background: #fefce8; border: 2px solid #eab308;">
+                    <td>9</td>
+                    <td><b>Accidents-metadata</b></td>
+                    <td style="text-align: right; color: #dc2626; font-weight: 700;">15,600</td>
+                    <td style="text-align: right; color: #15803d; font-weight: 700;"><b>247</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #166534; color: white; font-weight: 800; font-size: 13px;">-98.4%</span></td>
+                    <td style="text-align: right; color: #dc2626; font-weight: 700;">12,677 ms</td>
+                    <td style="text-align: right; color: #15803d; font-weight: 700;"><b>1,138 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #166534; color: white; font-weight: 800; font-size: 13px;">-91.0%</span></td>
+                    <td><b>Kỷ lục:</b> Giảm 15,353 lần GC, tiết kiệm <b>11.54 giây</b> độ trễ dừng</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td><b>Chainstore-metadata</b></td>
+                    <td style="text-align: right;">5,679</td>
+                    <td style="text-align: right;"><b>603</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">-89.4%</span></td>
+                    <td style="text-align: right;">7,835 ms</td>
+                    <td style="text-align: right;"><b>2,419 ms</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">-69.1%</span></td>
+                    <td>Quy mô 1.1 triệu transactions - Tiết kiệm hơn 5.41 giây độ trễ dừng</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PHẦN BỔ SUNG 2: BẢNG 5.4 PHÂN TÍCH THÔNG LƯỢNG TPS VÀ KHẢ NĂNG MỞ RỘNG -->
+    <div class="section" id="throughput-scalability-section">
+        <div class="section-title">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 22px;">🚀</span>
+                <span>BẢNG 5.4: SO SÁNH THÔNG LƯỢNG XỬ LÝ (THROUGHPUT - TPS) & KHẢ NĂNG MỞ RỘNG (SCALABILITY)</span>
+            </div>
+            <span style="font-size: 12px; font-weight: normal; color: #64748b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px;">Nguồn: Luận văn Báo cáo Cuối kỳ - Bảng 10</span>
+        </div>
+        <p style="font-size: 13.5px; color: #475569; margin-bottom: 16px; line-height: 1.6;">
+            Thông lượng xử lý đo bằng số lượng giao dịch được hoàn tất khai phá trên một giây (Transactions Per Second - TPS). Kiến trúc tối ưu mẫu thiết kế cho thấy khả năng mở rộng (scalability) vượt bậc khi số lượng giao dịch và độ dày đặc của tập dữ liệu tăng lên:
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 45px;">STT</th>
+                    <th>Bộ Dữ Liệu</th>
+                    <th style="text-align: right;">Số Giao Dịch (#Tx)</th>
+                    <th style="text-align: right;">Thời Gian Base (s)</th>
+                    <th style="text-align: right;">Thời Gian Pat (s)</th>
+                    <th style="text-align: right;">Throughput Base</th>
+                    <th style="text-align: right;">Throughput Pattern</th>
+                    <th style="text-align: center;">Tốc Độ Tăng Tốc (Speedup)</th>
+                    <th>Đánh Giá Khả Năng Mở Rộng</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td><b>Running Example</b></td>
+                    <td style="text-align: right;">4</td>
+                    <td style="text-align: right;">0.13 s</td>
+                    <td style="text-align: right;"><b>0.16 s</b></td>
+                    <td style="text-align: right;">30 tx/s</td>
+                    <td style="text-align: right;"><b>25 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">0.83x (-20.6%)</span></td>
+                    <td>Overhead ban đầu của hạ tầng Patterns lớn hơn khối lượng tính toán</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td><b>Chess-metadata</b></td>
+                    <td style="text-align: right;">3,196</td>
+                    <td style="text-align: right;">8.53 s</td>
+                    <td style="text-align: right;"><b>8.11 s</b></td>
+                    <td style="text-align: right;">374 tx/s</td>
+                    <td style="text-align: right;"><b>394 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">1.05x (+5.2%)</span></td>
+                    <td>Hiệu năng ổn định (+5.2%), tiết kiệm 32% dung lượng RAM</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td><b>NewChess-metadata</b></td>
+                    <td style="text-align: right;">3,196</td>
+                    <td style="text-align: right;">8.55 s</td>
+                    <td style="text-align: right;"><b>8.74 s</b></td>
+                    <td style="text-align: right;">373 tx/s</td>
+                    <td style="text-align: right;"><b>365 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">0.98x (-2.2%)</span></td>
+                    <td>Tương đương bản gốc, bảo toàn chính xác 100% itemset</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td><b>Mushrooms-metadata</b></td>
+                    <td style="text-align: right;">8,416</td>
+                    <td style="text-align: right;">5.17 s</td>
+                    <td style="text-align: right;"><b>2.74 s</b></td>
+                    <td style="text-align: right;">1,627 tx/s</td>
+                    <td style="text-align: right;"><b>3,068 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">1.88x (+88.6%)</span></td>
+                    <td>Thông lượng tăng gần gấp đôi, rút ngắn 47% thời gian khai phá</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td><b>NewMushroom-metadata</b></td>
+                    <td style="text-align: right;">8,416</td>
+                    <td style="text-align: right;">5.18 s</td>
+                    <td style="text-align: right;"><b>2.68 s</b></td>
+                    <td style="text-align: right;">1,625 tx/s</td>
+                    <td style="text-align: right;"><b>3,137 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">1.93x (+93.0%)</span></td>
+                    <td>Đạt đỉnh thông lượng <b>3,137 tx/s</b> trên dữ liệu sinh thái học</td>
+                </tr>
+                <tr style="background: #f0fdf4;">
+                    <td>6</td>
+                    <td><b>Connects-metadata</b></td>
+                    <td style="text-align: right;">67,557</td>
+                    <td style="text-align: right;">682.76 s</td>
+                    <td style="text-align: right;"><b>273.58 s</b></td>
+                    <td style="text-align: right; color: #dc2626;">98 tx/s</td>
+                    <td style="text-align: right; color: #15803d; font-weight: 700;"><b>246 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #15803d; color: white; font-weight: 700;">2.50x (+150.0%)</span></td>
+                    <td><b>Tăng tốc ngoạn mục:</b> TPS tăng gấp 2.51 lần trên dữ liệu dày đặc phức tạp</td>
+                </tr>
+                <tr style="background: #f0fdf4;">
+                    <td>7</td>
+                    <td><b>NewConnects-metadata</b></td>
+                    <td style="text-align: right;">67,557</td>
+                    <td style="text-align: right;">705.51 s</td>
+                    <td style="text-align: right;"><b>346.10 s</b></td>
+                    <td style="text-align: right; color: #dc2626;">95 tx/s</td>
+                    <td style="text-align: right; color: #15803d; font-weight: 700;"><b>195 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #15803d; color: white; font-weight: 700;">2.04x (+103.8%)</span></td>
+                    <td>Xử lý gấp đôi thông lượng khi phân tích drift dữ liệu</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td><b>Retail-metadata</b></td>
+                    <td style="text-align: right;">88,162</td>
+                    <td style="text-align: right;">176.90 s</td>
+                    <td style="text-align: right;"><b>170.70 s</b></td>
+                    <td style="text-align: right;">498 tx/s</td>
+                    <td style="text-align: right;"><b>516 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green">1.04x (+3.6%)</span></td>
+                    <td>Dữ liệu siêu thị bán lẻ quy mô lớn, tiết kiệm 25.5% RAM</td>
+                </tr>
+                <tr style="background: #fefce8; border: 2px solid #eab308;">
+                    <td>9</td>
+                    <td><b>Accidents-metadata</b></td>
+                    <td style="text-align: right;">340,183</td>
+                    <td style="text-align: right;">3,156.22 s</td>
+                    <td style="text-align: right;"><b>1,490.79 s</b></td>
+                    <td style="text-align: right; color: #dc2626; font-weight: 700;">107 tx/s</td>
+                    <td style="text-align: right; color: #15803d; font-weight: 700;"><b>228 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="background: #166534; color: white; font-weight: 800; font-size: 13px;">2.12x (+111.7%)</span></td>
+                    <td><b>Quy mô lớn & dày đặc:</b> Rút ngắn 27.8 phút xử lý (52.6m ➔ 24.8m), TPS tăng 2.13x</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td><b>Chainstore-metadata</b></td>
+                    <td style="text-align: right;">1,112,949</td>
+                    <td style="text-align: right;">874.58 s</td>
+                    <td style="text-align: right;"><b>589.30 s</b></td>
+                    <td style="text-align: right;">1,272 tx/s</td>
+                    <td style="text-align: right;"><b>1,888 tx/s</b></td>
+                    <td style="text-align: center;"><span class="badge badge-green" style="font-weight: 700;">1.48x (+48.4%)</span></td>
+                    <td><b>Triệu giao dịch (Big Data):</b> Xử lý nhanh hơn 4.75 phút, TPS tăng 616 tx/s</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PHẦN BỔ SUNG 3: ĐỐI CHIẾU 8 DESIGN PATTERNS & ĐO ĐẠC THỰC NGHIỆM -->
+    <div class="section" id="pattern-scientific-impact-section">
+        <div class="section-title">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 22px;">🏛️</span>
+                <span>TỔNG HỢP GIÁ TRỊ KỸ THUẬT: ĐỐI CHIẾU 8 GOF DESIGN PATTERNS VỚI KẾT QUẢ ĐO ĐẠC</span>
+            </div>
+            <span style="font-size: 12px; font-weight: normal; color: #64748b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px;">Khoa học Kiến trúc Phần mềm</span>
+        </div>
+        <p style="font-size: 13.5px; color: #475569; margin-bottom: 16px; line-height: 1.6;">
+            Phân tích định lượng chứng minh việc tái cấu trúc HUDD-TDS theo 8 GoF Design Patterns không chỉ nâng cao tính bao đóng, tính mở rộng theo chuẩn SOLID mà còn tối ưu hóa trực tiếp tài nguyên máy tính ở mức độ phần cứng:
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Nhóm Mẫu</th>
+                    <th>GoF Design Pattern</th>
+                    <th>Vị Trí Áp Dụng Trong HUDD-TDS</th>
+                    <th>Bằng Chứng Đo Đạc Thực Tế</th>
+                    <th>Ý Nghĩa Khoa Học & Công Nghệ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td><span class="badge badge-blue">Khởi tạo</span></td>
+                    <td><b>Object Pool</b></td>
+                    <td>Tái sử dụng các nút HUI-List và Utility-List Nodes</td>
+                    <td><b style="color: #15803d;">Giảm 98.4% GC Calls</b> (Accidents: 15.6k ➔ 247 lần), tiết kiệm 11.54s Stop-The-World</td>
+                    <td>Triệt tiêu chi phí cấp phát bộ nhớ lặp lại liên tục, giữ vòng đời đối tượng trong bộ đệm nội bộ</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td><span class="badge badge-blue">Khởi tạo</span></td>
+                    <td><b>Singleton</b></td>
+                    <td>Quản lý tài nguyên dùng chung: Pool Manager, Memory Guardian</td>
+                    <td>Duy trì cấu hình ngưỡng <code>minUtil</code> và kiểm soát dung lượng Heap đồng nhất</td>
+                    <td>Đảm bảo điểm truy cập toàn cục duy nhất, ngăn chặn tạo thừa instance cấu hình</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td><span class="badge badge-blue">Khởi tạo</span></td>
+                    <td><b>Factory Method</b></td>
+                    <td>Khởi tạo đa dạng chiến lược cắt tỉa và loại cấu trúc dữ liệu</td>
+                    <td>Linh hoạt nạp thuật toán theo độ thưa/dày của dữ liệu (Dense vs Sparse)</td>
+                    <td>Đóng gói logic khởi tạo, tuân thủ nguyên lý Đóng/Mở (Open/Closed Principle)</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td><span class="badge badge-green">Cấu trúc</span></td>
+                    <td><b>Flyweight</b></td>
+                    <td>Chia sẻ các định danh Item và tiền tố Itemset bất biến</td>
+                    <td><b style="color: #059669;">Tiết kiệm tới 54.2% RAM Heap</b> (Accidents: 242MB ➔ 111MB; Mushrooms: -53%)</td>
+                    <td>Loại bỏ hàng triệu đối tượng trùng lặp trong bộ nhớ, tối ưu hóa kích thước bản ghi</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td><span class="badge badge-green">Cấu trúc</span></td>
+                    <td><b>Facade</b></td>
+                    <td>Cung cấp API đơn giản hóa cho toàn bộ Pipeline khai phá HUDD-TDS</td>
+                    <td>Giúp mã nguồn thí nghiệm Benchmark gọn gàng, cách ly đo đạc với xử lý lõi</td>
+                    <td>Che giấu sự phức tạp của hệ thống con, giảm thiểu độ phụ thuộc (Decoupling)</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td><span class="badge badge-green">Cấu trúc</span></td>
+                    <td><b>Adapter</b></td>
+                    <td>Chuyển đổi dữ liệu từ định dạng SPMF / Text thô sang chuẩn nội bộ</td>
+                    <td>Bảo đảm tính tương thích với cả 10 định dạng bộ dữ liệu Benchmark khác nhau</td>
+                    <td>Tách rời tầng nạp dữ liệu (Data Ingestion) khỏi logic tính toán tiện ích</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td><span class="badge badge-amber" style="background:#fef3c7; color:#92400e;">Hành vi</span></td>
+                    <td><b>Template Method</b></td>
+                    <td>Định nghĩa khung xương pipeline: Quét ➔ Cắt tỉa ➔ Khai phá ➔ Cập nhật Drift</td>
+                    <td><b style="color: #2563eb;">Tăng tốc 2.50x</b> trên Connects, <b>2.12x</b> trên Accidents</td>
+                    <td>Cố định khung thuật toán chuẩn, cho phép ghi đè các bước con mà không phá vỡ logic chung</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td><span class="badge badge-amber" style="background:#fef3c7; color:#92400e;">Hành vi</span></td>
+                    <td><b>Chain of Responsibility</b></td>
+                    <td>Chuỗi các bộ lọc cắt tỉa: Sub-tree Pruning ➔ Utility Pruning ➔ Drift Filter</td>
+                    <td>Loại bỏ sớm các nhánh không tiềm năng, giảm tải duyệt cây đệ quy</td>
+                    <td>Xử lý cắt tỉa theo chuỗi mắt xích độc lập, dễ dàng bổ sung hoặc tái sắp xếp điều kiện lọc</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
     <!-- TÍCH HỢP CHART.JS & MÃ ĐIỀU KHIỂN BIỂU ĐỒ -->
@@ -664,11 +1102,143 @@
         const ramBase = [4.0, 184.3, 247.2, 199.0, 161.1, 313.3, 387.4, 496.3, 242.5, 480.0];
         const ramPat  = [2.9, 125.2, 173.7, 93.5, 81.8, 405.5, 407.2, 369.9, 111.0, 920.4];
 
+        // Dữ liệu Garbage Collection (Bảng 5.3 trong Báo cáo cuối kỳ)
+        const gcCallsBase = [2, 70, 64, 46, 47, 6466, 6539, 1727, 15600, 5679];
+        const gcCallsPat  = [2, 57, 64, 13, 13,  304,  433,  533,   247,  603];
+
+        const gcPauseBase = [2, 198, 201, 124, 130, 5090, 5209, 2573, 12677, 7835];
+        const gcPausePat  = [1, 119, 145,  55,  62,  703,  940, 1075,  1138, 2419];
+
+        // Dữ liệu Thông lượng xử lý giao dịch / giây (Bảng 5.4 / Bảng 10)
+        const throughputBase = [30, 374, 373, 1627, 1625, 98,  95,  498, 107, 1272];
+        const throughputPat  = [25, 394, 365, 3068, 3137, 246, 195, 516, 228, 1888];
+
         let chartRuntime = null;
         let chartRam = null;
+        let chartGcCalls = null;
+        let chartGcPause = null;
+        let chartThroughput = null;
+
         let isRuntimeLog = true;
+        let isGcCallsLog = true;
+        let isGcPauseLog = true;
+        let isThroughputLog = true;
+
         let chartRuntimeType = 'bar';
         let chartRamType = 'bar';
+        let chartGcCallsType = 'bar';
+        let chartGcPauseType = 'bar';
+        let chartThroughputType = 'bar';
+
+
+        // =========================================================================
+        // PLUGIN HIỂN THỊ TRỰC TIẾP CON SỐ TRÊN ĐẦU CỘT BIỂU ĐỒ (DATA LABELS PLUGIN)
+        // =========================================================================
+        let showBarLabels = true;
+
+        const chartValueLabelsPlugin = {
+            id: 'chartValueLabels',
+            afterDatasetsDraw(chart) {
+                if (!showBarLabels) return;
+                if (!chart || !chart.config || chart.config.type !== 'bar') return;
+
+                const { ctx, chartArea } = chart;
+                if (!ctx || !chartArea) return;
+                ctx.save();
+                try {
+
+                chart.data.datasets.forEach((dataset, datasetIdx) => {
+                    const meta = chart.getDatasetMeta(datasetIdx);
+                    if (meta.hidden) return;
+
+                    meta.data.forEach((bar, dataIdx) => {
+                        const val = dataset.data[dataIdx];
+                        if (val === null || val === undefined) return;
+
+                        let labelText = '';
+                        const chartId = chart.canvas.id;
+
+                        if (chartId === 'canvasRuntimeChart') {
+                            if (val < 1) labelText = val.toFixed(2) + 's';
+                            else if (val < 10) labelText = val.toFixed(1) + 's';
+                            else labelText = Math.round(val).toLocaleString() + 's';
+                        } else if (chartId === 'canvasRamChart') {
+                            labelText = (val < 10 ? val.toFixed(1) : Math.round(val)) + 'M';
+                        } else if (chartId === 'canvasGcCallsChart') {
+                            labelText = val >= 1000 ? (val >= 10000 ? (val/1000).toFixed(1) + 'k' : Math.round(val).toLocaleString()) : val.toString();
+                        } else if (chartId === 'canvasGcPauseChart') {
+                            labelText = val >= 1000 ? (val >= 10000 ? (val/1000).toFixed(1) + 's' : Math.round(val).toLocaleString() + 'ms') : val + 'ms';
+                        } else if (chartId === 'canvasThroughputChart') {
+                            labelText = val >= 1000 ? Math.round(val).toLocaleString() : val.toString();
+                        } else {
+                            labelText = val.toString();
+                        }
+
+                        ctx.font = 'bold 10.5px Inter, system-ui, -apple-system, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+
+                        // Màu sắc trực quan tương phản cao
+                        if (chartId === 'canvasRuntimeChart') {
+                            ctx.fillStyle = datasetIdx === 1 ? '#1d4ed8' : '#475569';
+                        } else if (chartId === 'canvasRamChart') {
+                            ctx.fillStyle = datasetIdx === 1 ? '#047857' : '#475569';
+                        } else if (chartId === 'canvasGcCallsChart') {
+                            ctx.fillStyle = datasetIdx === 1 ? '#b45309' : '#475569';
+                        } else if (chartId === 'canvasGcPauseChart') {
+                            ctx.fillStyle = datasetIdx === 1 ? '#be123c' : '#475569';
+                        } else if (chartId === 'canvasThroughputChart') {
+                            ctx.fillStyle = datasetIdx === 1 ? '#6d28d9' : '#475569';
+                        } else {
+                            ctx.fillStyle = datasetIdx === 1 ? '#1d4ed8' : '#475569';
+                        }
+
+                        const x = bar.x;
+                        let y = bar.y - 4;
+
+                        // Nếu cột quá sát mép trên biểu đồ thì đưa chữ vào trong cột
+                        if (y < chartArea.top + 16) {
+                            y = bar.y + 14;
+                            ctx.fillStyle = '#ffffff';
+                        }
+
+                        // Viền trắng bảo vệ chống chìm màu
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                        ctx.lineWidth = 3;
+                        ctx.strokeText(labelText, x, y);
+                        ctx.fillText(labelText, x, y);
+                    });
+                });
+                } catch (err) {
+                    console.warn('Error in chartValueLabelsPlugin:', err);
+                } finally {
+                    ctx.restore();
+                }
+            }
+        };
+
+        function toggleDataLabels() {
+            showBarLabels = !showBarLabels;
+            const btns = document.querySelectorAll('.btn-toggle-labels');
+            btns.forEach(btn => {
+                if (showBarLabels) {
+                    btn.innerHTML = '🔢 Số liệu: BẬT ✓';
+                    btn.style.background = '#f0fdf4';
+                    btn.style.borderColor = '#bbf7d0';
+                    btn.style.color = '#166534';
+                } else {
+                    btn.innerHTML = '🔢 Số liệu: TẮT ✕';
+                    btn.style.background = '#f8fafc';
+                    btn.style.borderColor = '#cbd5e1';
+                    btn.style.color = '#64748b';
+                }
+            });
+            if (chartRuntime) chartRuntime.update();
+            if (chartRam) chartRam.update();
+            if (chartGcCalls) chartGcCalls.update();
+            if (chartGcPause) chartGcPause.update();
+            if (chartThroughput) chartThroughput.update();
+        }
 
         function createRuntimeChart() {
             if (chartRuntime) chartRuntime.destroy();
@@ -714,6 +1284,7 @@
                     scales: {
                         y: {
                             type: isRuntimeLog ? 'logarithmic' : 'linear',
+                            suggestedMax: isRuntimeLog ? 10000 : 3600,
                             title: {
                                 display: true,
                                 text: isRuntimeLog ? 'Thời gian (Giây - Thang Log10)' : 'Thời gian (Giây - Tuyến tính)',
@@ -807,6 +1378,7 @@
                     maintainAspectRatio: false,
                     scales: {
                         y: {
+                            suggestedMax: 1050,
                             title: { display: true, text: 'Bộ nhớ Heap đỉnh (MB)', font: { weight: '600', size: 12.5 } },
                             grid: { color: '#f1f5f9' },
                             beginAtZero: true,
@@ -849,6 +1421,353 @@
                     }
                 }
             });
+        }
+
+        // --- BIỂU ĐỒ 3: GC CALLS CHART ---
+        function createGcCallsChart() {
+            if (chartGcCalls) chartGcCalls.destroy();
+            const ctxGc = document.getElementById('canvasGcCallsChart').getContext('2d');
+            const isLine = chartGcCallsType === 'line';
+
+            chartGcCalls = new Chart(ctxGc, {
+                type: chartGcCallsType,
+                data: {
+                    labels: dsLabels,
+                    datasets: [
+                        {
+                            label: 'Baseline GC Calls (Chưa áp dụng mẫu)',
+                            data: gcCallsBase,
+                            backgroundColor: isLine ? 'rgba(148, 163, 184, 0.15)' : '#94a3b8',
+                            borderColor: '#64748b',
+                            borderWidth: isLine ? 2.5 : 1,
+                            borderRadius: isLine ? 0 : 4,
+                            fill: isLine,
+                            tension: 0.25,
+                            pointRadius: isLine ? 5 : 0,
+                            pointHoverRadius: isLine ? 8 : 4,
+                            maxBarThickness: 38
+                        },
+                        {
+                            label: 'Design Patterns GC Calls (Object Pool tối ưu)',
+                            data: gcCallsPat,
+                            backgroundColor: isLine ? 'rgba(217, 119, 6, 0.2)' : '#d97706',
+                            borderColor: '#b45309',
+                            borderWidth: isLine ? 2.5 : 1,
+                            borderRadius: isLine ? 0 : 4,
+                            fill: isLine,
+                            tension: 0.25,
+                            pointRadius: isLine ? 5 : 0,
+                            pointHoverRadius: isLine ? 8 : 4,
+                            maxBarThickness: 38
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: isGcCallsLog ? 'logarithmic' : 'linear',
+                            suggestedMax: isGcCallsLog ? 40000 : 18000,
+                            title: { display: true, text: 'Số lần kích hoạt GC (Lần' + (isGcCallsLog ? ' - Log scale' : '') + ')', font: { weight: '600', size: 12.5 } },
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(value) {
+                                    if (value === 1 || value === 10 || value === 100 || value === 1000 || value === 10000 || !isGcCallsLog) {
+                                        return Number(value).toLocaleString() + ' lần';
+                                    }
+                                    return null;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                minRotation: 0,
+                                color: '#1e293b',
+                                font: { size: 12, weight: '600' },
+                                padding: 10
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 16, font: { weight: '600', size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.parsed.y;
+                                    const dsIdx = context.dataIndex;
+                                    const baseVal = gcCallsBase[dsIdx];
+                                    const patVal = gcCallsPat[dsIdx];
+                                    if (context.datasetIndex === 1) {
+                                        const diff = ((baseVal - patVal) / baseVal * 100).toFixed(1);
+                                        const prefix = diff >= 0 ? `Giảm ${diff}%` : `Tăng ${Math.abs(diff)}%`;
+                                        return `Patterns: ${Number(val).toLocaleString()} lần (${prefix})`;
+                                    }
+                                    return `Baseline: ${Number(val).toLocaleString()} lần`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- BIỂU ĐỒ 4: GC PAUSE TIME CHART ---
+        function createGcPauseChart() {
+            if (chartGcPause) chartGcPause.destroy();
+            const ctxPause = document.getElementById('canvasGcPauseChart').getContext('2d');
+            const isLine = chartGcPauseType === 'line';
+
+            chartGcPause = new Chart(ctxPause, {
+                type: chartGcPauseType,
+                data: {
+                    labels: dsLabels,
+                    datasets: [
+                        {
+                            label: 'Baseline GC Pause Time (Chưa áp mẫu)',
+                            data: gcPauseBase,
+                            backgroundColor: isLine ? 'rgba(148, 163, 184, 0.15)' : '#94a3b8',
+                            borderColor: '#64748b',
+                            borderWidth: isLine ? 2.5 : 1,
+                            borderRadius: isLine ? 0 : 4,
+                            fill: isLine,
+                            tension: 0.25,
+                            pointRadius: isLine ? 5 : 0,
+                            pointHoverRadius: isLine ? 8 : 4,
+                            maxBarThickness: 38
+                        },
+                        {
+                            label: 'Design Patterns GC Pause Time (Giảm độ trễ)',
+                            data: gcPausePat,
+                            backgroundColor: isLine ? 'rgba(225, 29, 72, 0.2)' : '#e11d48',
+                            borderColor: '#be123c',
+                            borderWidth: isLine ? 2.5 : 1,
+                            borderRadius: isLine ? 0 : 4,
+                            fill: isLine,
+                            tension: 0.25,
+                            pointRadius: isLine ? 5 : 0,
+                            pointHoverRadius: isLine ? 8 : 4,
+                            maxBarThickness: 38
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: isGcPauseLog ? 'logarithmic' : 'linear',
+                            suggestedMax: isGcPauseLog ? 35000 : 15000,
+                            title: { display: true, text: 'Tổng thời gian dừng GC (ms' + (isGcPauseLog ? ' - Log scale' : '') + ')', font: { weight: '600', size: 12.5 } },
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(value) {
+                                    if (value === 1 || value === 10 || value === 100 || value === 1000 || value === 10000 || !isGcPauseLog) {
+                                        return Number(value).toLocaleString() + ' ms';
+                                    }
+                                    return null;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                minRotation: 0,
+                                color: '#1e293b',
+                                font: { size: 12, weight: '600' },
+                                padding: 10
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 16, font: { weight: '600', size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.parsed.y;
+                                    const dsIdx = context.dataIndex;
+                                    const baseVal = gcPauseBase[dsIdx];
+                                    const patVal = gcPausePat[dsIdx];
+                                    if (context.datasetIndex === 1) {
+                                        const diff = ((baseVal - patVal) / baseVal * 100).toFixed(1);
+                                        const savedSec = ((baseVal - patVal) / 1000).toFixed(2);
+                                        const prefix = diff >= 0 ? `Giảm ${diff}% (Tiết kiệm ${savedSec}s)` : `Tăng ${Math.abs(diff)}%`;
+                                        return `Patterns: ${Number(val).toLocaleString()} ms (${prefix})`;
+                                    }
+                                    return `Baseline: ${Number(val).toLocaleString()} ms`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- BIỂU ĐỒ 5: THROUGHPUT CHART ---
+        function createThroughputChart() {
+            if (chartThroughput) chartThroughput.destroy();
+            const ctxTp = document.getElementById('canvasThroughputChart').getContext('2d');
+            const isLine = chartThroughputType === 'line';
+
+            chartThroughput = new Chart(ctxTp, {
+                type: chartThroughputType,
+                data: {
+                    labels: dsLabels,
+                    datasets: [
+                        {
+                            label: 'Baseline Throughput (tx/s)',
+                            data: throughputBase,
+                            backgroundColor: isLine ? 'rgba(148, 163, 184, 0.15)' : '#94a3b8',
+                            borderColor: '#64748b',
+                            borderWidth: isLine ? 2.5 : 1,
+                            borderRadius: isLine ? 0 : 4,
+                            fill: isLine,
+                            tension: 0.25,
+                            pointRadius: isLine ? 5 : 0,
+                            pointHoverRadius: isLine ? 8 : 4,
+                            maxBarThickness: 38
+                        },
+                        {
+                            label: 'Design Patterns Throughput (tx/s - Nhanh hơn)',
+                            data: throughputPat,
+                            backgroundColor: isLine ? 'rgba(124, 58, 237, 0.2)' : '#7c3aed',
+                            borderColor: '#6d28d9',
+                            borderWidth: isLine ? 2.5 : 1,
+                            borderRadius: isLine ? 0 : 4,
+                            fill: isLine,
+                            tension: 0.25,
+                            pointRadius: isLine ? 5 : 0,
+                            pointHoverRadius: isLine ? 8 : 4,
+                            maxBarThickness: 38
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: isThroughputLog ? 'logarithmic' : 'linear',
+                            suggestedMax: isThroughputLog ? 6000 : 3600,
+                            title: { display: true, text: 'Thông lượng (Giao dịch/Giây' + (isThroughputLog ? ' - Log scale' : '') + ')', font: { weight: '600', size: 12.5 } },
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(value) {
+                                    if (value === 10 || value === 100 || value === 1000 || value === 3000 || !isThroughputLog) {
+                                        return Number(value).toLocaleString() + ' tx/s';
+                                    }
+                                    return null;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                minRotation: 0,
+                                color: '#1e293b',
+                                font: { size: 12, weight: '600' },
+                                padding: 10
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 16, font: { weight: '600', size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.parsed.y;
+                                    const dsIdx = context.dataIndex;
+                                    const baseVal = throughputBase[dsIdx];
+                                    const patVal = throughputPat[dsIdx];
+                                    if (context.datasetIndex === 1) {
+                                        const speedup = (patVal / baseVal).toFixed(2);
+                                        const diff = (((patVal - baseVal) / baseVal) * 100).toFixed(1);
+                                        const prefix = diff >= 0 ? `+${diff}% (${speedup}x)` : `${diff}% (${speedup}x)`;
+                                        return `Patterns: ${Number(val).toLocaleString()} tx/s (${prefix})`;
+                                    }
+                                    return `Baseline: ${Number(val).toLocaleString()} tx/s`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Toggles cho GC Calls
+        function toggleGcCallsType() {
+            chartGcCallsType = chartGcCallsType === 'bar' ? 'line' : 'bar';
+            const btn = document.getElementById('btn-gccalls-type');
+            if (chartGcCallsType === 'bar') {
+                btn.innerHTML = 'Dạng: 📊 Cột (Bar)';
+                btn.style.background = '#fef3c7';
+                btn.style.color = '#92400e';
+            } else {
+                btn.innerHTML = 'Dạng: 📈 Đường (Line)';
+                btn.style.background = '#fde68a';
+                btn.style.color = '#78350f';
+            }
+            createGcCallsChart();
+        }
+
+        function toggleGcCallsScale() {
+            if (!chartGcCalls) return;
+            isGcCallsLog = !isGcCallsLog;
+            document.getElementById('btn-gccalls-scale').innerText = isGcCallsLog ? 'Thang đo: Logarithmic ▾' : 'Thang đo: Tuyến tính ▾';
+            createGcCallsChart();
+        }
+
+        // Toggles cho GC Pause
+        function toggleGcPauseType() {
+            chartGcPauseType = chartGcPauseType === 'bar' ? 'line' : 'bar';
+            const btn = document.getElementById('btn-gcpause-type');
+            if (chartGcPauseType === 'bar') {
+                btn.innerHTML = 'Dạng: 📊 Cột (Bar)';
+                btn.style.background = '#ffe4e6';
+                btn.style.color = '#9f1239';
+            } else {
+                btn.innerHTML = 'Dạng: 📈 Đường (Line)';
+                btn.style.background = '#fecdd3';
+                btn.style.color = '#881337';
+            }
+            createGcPauseChart();
+        }
+
+        function toggleGcPauseScale() {
+            if (!chartGcPause) return;
+            isGcPauseLog = !isGcPauseLog;
+            document.getElementById('btn-gcpause-scale').innerText = isGcPauseLog ? 'Thang đo: Logarithmic ▾' : 'Thang đo: Tuyến tính ▾';
+            createGcPauseChart();
+        }
+
+        // Toggles cho Throughput
+        function toggleThroughputType() {
+            chartThroughputType = chartThroughputType === 'bar' ? 'line' : 'bar';
+            const btn = document.getElementById('btn-throughput-type');
+            if (chartThroughputType === 'bar') {
+                btn.innerHTML = 'Dạng: 📊 Cột (Bar)';
+                btn.style.background = '#ede9fe';
+                btn.style.color = '#5b21b6';
+            } else {
+                btn.innerHTML = 'Dạng: 📈 Đường (Line)';
+                btn.style.background = '#ddd6fe';
+                btn.style.color = '#4c1d95';
+            }
+            createThroughputChart();
+        }
+
+        function toggleThroughputScale() {
+            if (!chartThroughput) return;
+            isThroughputLog = !isThroughputLog;
+            document.getElementById('btn-throughput-scale').innerText = isThroughputLog ? 'Thang đo: Logarithmic ▾' : 'Thang đo: Tuyến tính ▾';
+            createThroughputChart();
         }
 
         function toggleRuntimeType() {
@@ -918,8 +1837,12 @@
                 document.getElementById('btn-tab-interactive').style.display = 'none';
                 return;
             }
+            Chart.register(chartValueLabelsPlugin);
             createRuntimeChart();
             createRamChart();
+            createGcCallsChart();
+            createGcPauseChart();
+            createThroughputChart();
         }
 
         // Tự động khởi chạy khi trang tải xong

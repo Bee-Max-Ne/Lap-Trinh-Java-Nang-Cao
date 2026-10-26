@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>MẪU THIẾT KẾ #05: FLYWEIGHT PATTERN</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F5F3EE;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="p-4 flex items-center justify-center">
+  <!-- Sized container for crisp export -->
+  <div style="width: 920px; height: 560px;" class="bg-white rounded-2xl border-2 border-slate-300 p-5 shadow-xl flex flex-col justify-between">
+    <!-- Header -->
+    <div class="flex items-start justify-between border-b-2 border-slate-100 pb-2.5 mb-2">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-indigo-100 text-indigo-900 border border-indigo-200">
+            TẦNG 5: DOMAIN MODEL & OPTIMIZATION LAYER
+          </span>
+          <span class="text-[11px] font-bold text-slate-500 font-mono">HUDD-TDS ARCHITECTURE</span>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 tracking-tight">
+          MẪU THIẾT KẾ #05: FLYWEIGHT PATTERN
+        </h2>
+        <div class="text-xs text-slate-500 mt-0.5">
+          Sơ Đồ Phân Bổ Bộ Nhớ JVM Heap Trước Và Sau Khi Tối Ưu
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md shadow-2xs">
+          Tiết Kiệm 60% – 75% RAM Thực Nghiệm
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 my-1">
+      
+        <div class="h-full flex flex-col justify-between">
+          <!-- BEFORE CARD -->
+          <div class="bg-red-50/70 border-2 border-red-300 rounded-xl p-3 shadow-xs">
+            <div class="flex items-center justify-between border-b border-red-200 pb-1.5 mb-2">
+              <span class="text-xs font-bold text-red-900 uppercase tracking-wide flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-600"></span>
+                ❌ Khi CHƯA có Flyweight (Nhân bản đối tượng lặp lại)
+              </span>
+              <span class="text-xs font-mono font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded border border-red-300">Heap: ~350 MB RAM</span>
+            </div>
+            <div class="grid grid-cols-4 gap-2 text-center text-xs font-mono">
+              <div class="bg-white border border-red-300 rounded-lg p-2 shadow-2xs">
+                <div class="font-bold text-slate-800">Element #1</div>
+                <div class="text-[11px] text-red-700 mt-1">Item [ID:10, Milk, $2.5]</div>
+                <div class="text-[10px] text-slate-500 font-sans">qty: 2</div>
+              </div>
+              <div class="bg-white border border-red-300 rounded-lg p-2 shadow-2xs">
+                <div class="font-bold text-slate-800">Element #2</div>
+                <div class="text-[11px] text-red-700 mt-1">Item [ID:10, Milk, $2.5]</div>
+                <div class="text-[10px] text-slate-500 font-sans">qty: 5</div>
+              </div>
+              <div class="bg-white border border-red-300 rounded-lg p-2 shadow-2xs flex flex-col justify-center">
+                <div class="font-bold text-slate-400">. . .</div>
+                <div class="text-[10px] text-slate-400 font-sans">Hàng triệu Node</div>
+              </div>
+              <div class="bg-white border border-red-300 rounded-lg p-2 shadow-2xs">
+                <div class="font-bold text-slate-800">Element #1.000.000</div>
+                <div class="text-[11px] text-red-700 mt-1">Item [ID:10, Milk, $2.5]</div>
+                <div class="text-[10px] text-slate-500 font-sans">qty: 1</div>
+              </div>
+            </div>
+            <div class="text-[11px] text-red-700 text-center font-sans mt-1.5 font-medium">
+              ⚠ Lãng phí hàng triệu bản sao String & Object giống hệt nhau ➔ Dẫn tới OutOfMemoryError & GC Pause
+            </div>
+          </div>
+
+          <!-- ARROW -->
+          <div class="flex items-center justify-center -my-1 text-emerald-700 font-bold text-xs gap-1.5">
+            <span>↓</span> Áp dụng Flyweight: Tách trạng thái Nội vi (quantity) & Ngoại vi (Item) <span>↓</span>
+          </div>
+
+          <!-- AFTER CARD -->
+          <div class="bg-emerald-50/70 border-2 border-emerald-400 rounded-xl p-3 shadow-xs">
+            <div class="flex items-center justify-between border-b border-emerald-200 pb-1.5 mb-2">
+              <span class="text-xs font-bold text-emerald-900 uppercase tracking-wide flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                ✅ Khi CÓ Flyweight (Chia sẻ đối tượng qua ItemFactory)
+              </span>
+              <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300">Heap: ~95 MB RAM (Tiết kiệm 72%)</span>
+            </div>
+
+            <!-- Factory Shared Single Instance -->
+            <div class="bg-white border-2 border-blue-400 rounded-lg p-2 mb-2 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                <span class="font-mono text-xs font-bold text-blue-950">ItemFactory (ConcurrentHashMap Pool):</span>
+              </div>
+              <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                Duy nhất 1 thực thể gốc: ItemFlyweight [ID: 10, Name: "Milk", Price: 2.5]
+              </span>
+            </div>
+
+            <!-- Lightweight Elements -->
+            <div class="grid grid-cols-4 gap-2 text-center text-xs font-mono">
+              <div class="bg-white border border-emerald-300 rounded-lg p-2 shadow-2xs">
+                <div class="font-bold text-slate-800">Element #1</div>
+                <div class="text-[11px] text-blue-700 font-bold">ptr → [Milk]</div>
+                <div class="text-[10px] text-slate-600 font-sans">qty: 2 (nội vi)</div>
+              </div>
+              <div class="bg-white border border-emerald-300 rounded-lg p-2 shadow-2xs">
+                <div class="font-bold text-slate-800">Element #2</div>
+                <div class="text-[11px] text-blue-700 font-bold">ptr → [Milk]</div>
+                <div class="text-[10px] text-slate-600 font-sans">qty: 5 (nội vi)</div>
+              </div>
+              <div class="bg-white border border-emerald-300 rounded-lg p-2 shadow-2xs flex flex-col justify-center">
+                <div class="font-bold text-slate-400">. . .</div>
+                <div class="text-[10px] text-slate-400 font-sans">Chỉ tốn con trỏ 8B</div>
+              </div>
+              <div class="bg-white border border-emerald-300 rounded-lg p-2 shadow-2xs">
+                <div class="font-bold text-slate-800">Element #1.000.000</div>
+                <div class="text-[11px] text-blue-700 font-bold">ptr → [Milk]</div>
+                <div class="text-[10px] text-slate-600 font-sans">qty: 1 (nội vi)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+    </div>
+
+    <!-- Footer Note -->
+    <div class="border-t border-slate-100 pt-2 flex items-center justify-between text-[11px] text-slate-500">
+      <div class="flex items-center gap-1.5 font-medium">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        <span>Sơ đồ kiến trúc & luồng vận hành kỹ thuật — Đề tài HUDD-TDS</span>
+      </div>
+      <div class="font-mono text-slate-400">Khóa luận Tốt nghiệp CNTT</div>
+    </div>
+  </div>
+</body>
+</html>

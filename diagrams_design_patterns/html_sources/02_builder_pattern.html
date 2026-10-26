@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>MẪU THIẾT KẾ #02: BUILDER PATTERN</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F5F3EE;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="p-4 flex items-center justify-center">
+  <!-- Sized container for crisp export -->
+  <div style="width: 920px; height: 560px;" class="bg-white rounded-2xl border-2 border-slate-300 p-5 shadow-xl flex flex-col justify-between">
+    <!-- Header -->
+    <div class="flex items-start justify-between border-b-2 border-slate-100 pb-2.5 mb-2">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-indigo-100 text-indigo-900 border border-indigo-200">
+            TẦNG 2 & 3: APPLICATION & ALGORITHM LAYER
+          </span>
+          <span class="text-[11px] font-bold text-slate-500 font-mono">HUDD-TDS ARCHITECTURE</span>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 tracking-tight">
+          MẪU THIẾT KẾ #02: BUILDER PATTERN
+        </h2>
+        <div class="text-xs text-slate-500 mt-0.5">
+          Khởi Tạo Tham Số Dạng Fluent & Rào Chắn Kiểm Định Fail-Fast
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md shadow-2xs">
+          Loại Bỏ Telescoping Constructor 10 Tham Số
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 my-1">
+      
+        <div class="h-full flex flex-col justify-between">
+          <!-- Step Chain Header -->
+          <div class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Chuỗi phương thức cấu hình liên tiếp (Fluent Method Chaining)</span>
+            <span class="text-indigo-600 font-mono font-semibold">SimulationConfiguration.builder()</span>
+          </div>
+
+          <!-- Horizontal Fluent Steps -->
+          <div class="grid grid-cols-5 gap-2 text-xs font-mono">
+            <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2.5 shadow-xs flex flex-col justify-between">
+              <span class="text-[10px] uppercase font-sans font-bold text-indigo-600">Bước 1</span>
+              <span class="font-bold text-indigo-950 mt-1">.builder()</span>
+              <span class="text-[10px] text-slate-500 font-sans mt-0.5">Khởi tạo đối tượng Builder tạm</span>
+            </div>
+            <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2.5 shadow-xs flex flex-col justify-between">
+              <span class="text-[10px] uppercase font-sans font-bold text-indigo-600">Bước 2</span>
+              <span class="font-bold text-indigo-950 mt-1">.windowSize(1000)</span>
+              <span class="text-[10px] text-slate-500 font-sans mt-0.5">Kích thước cửa sổ trượt</span>
+            </div>
+            <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2.5 shadow-xs flex flex-col justify-between">
+              <span class="text-[10px] uppercase font-sans font-bold text-indigo-600">Bước 3</span>
+              <span class="font-bold text-indigo-950 mt-1">.threshold(0.02)</span>
+              <span class="text-[10px] text-slate-500 font-sans mt-0.5">Ngưỡng tiện ích tối thiểu</span>
+            </div>
+            <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2.5 shadow-xs flex flex-col justify-between">
+              <span class="text-[10px] uppercase font-sans font-bold text-indigo-600">Bước 4</span>
+              <span class="font-bold text-indigo-950 mt-1">.decayRate(0.95)</span>
+              <span class="text-[10px] text-slate-500 font-sans mt-0.5">Hệ số suy giảm tiện ích</span>
+            </div>
+            <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2.5 shadow-xs flex flex-col justify-between">
+              <span class="text-[10px] uppercase font-sans font-bold text-indigo-600">Bước 5</span>
+              <span class="font-bold text-indigo-950 mt-1">.batchInterval(100)</span>
+              <span class="text-[10px] text-slate-500 font-sans mt-0.5">Tần suất kiểm tra trôi dạt</span>
+            </div>
+          </div>
+
+          <!-- Arrow to Validation Gate -->
+          <div class="flex items-center justify-center my-0.5 text-slate-500 font-bold text-xs">
+            <span>↓ Gọi phương thức kết thúc: </span><code class="ml-1 px-2 py-0.5 bg-amber-100 text-amber-900 rounded font-mono font-bold">.build()</code>
+          </div>
+
+          <!-- Two Paths: Gatekeeper Validation -->
+          <div class="grid grid-cols-12 gap-3 items-stretch">
+            <!-- Left: Validation Rules -->
+            <div class="col-span-6 bg-amber-50/70 border-2 border-amber-300 rounded-xl p-3 shadow-xs">
+              <div class="flex items-center gap-2 text-xs font-bold text-amber-900 uppercase tracking-wide mb-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                Rào Chắn Kiểm Định Fail-Fast (Validation Gate)
+              </div>
+              <ul class="text-xs space-y-1.5 font-mono text-slate-700">
+                <li class="flex items-center gap-1.5">
+                  <span class="text-emerald-600 font-bold">✓</span>
+                  <span>windowSize &gt; 0</span>
+                  <span class="text-[10px] font-sans text-slate-500">(Cửa sổ phải hợp lệ)</span>
+                </li>
+                <li class="flex items-center gap-1.5">
+                  <span class="text-emerald-600 font-bold">✓</span>
+                  <span>0 &lt; minUtilityRatio &lt; 1</span>
+                  <span class="text-[10px] font-sans text-slate-500">(Ngưỡng tiện ích)</span>
+                </li>
+                <li class="flex items-center gap-1.5">
+                  <span class="text-emerald-600 font-bold">✓</span>
+                  <span>0 &lt; decayRate &lt;= 1.0</span>
+                  <span class="text-[10px] font-sans text-slate-500">(Hệ số suy giảm)</span>
+                </li>
+              </ul>
+              <div class="mt-2 text-[11px] text-red-600 font-sans font-semibold bg-red-100/60 px-2 py-1 rounded border border-red-200">
+                ⚠ Nếu vi phạm ➔ Ném ngay IllegalArgumentException
+              </div>
+            </div>
+
+            <!-- Right: Immutable Output -->
+            <div class="col-span-6 bg-emerald-50/70 border-2 border-emerald-400 rounded-xl p-3 shadow-xs flex flex-col justify-between">
+              <div class="flex items-center gap-2 text-xs font-bold text-emerald-900 uppercase tracking-wide">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                Đối Tượng Bất Biến (Immutable Configuration)
+              </div>
+              <p class="text-xs text-slate-600 font-sans leading-relaxed">
+                Sau khi vượt qua kiểm định, trả về một thể hiện <b>bất biến hoàn toàn</b> (chỉ có getter, không có setter).
+              </p>
+              <div class="bg-white border border-emerald-300 rounded p-2 text-xs font-mono text-emerald-950 font-bold text-center">
+                Thread-Safe: Không thể bị sửa đổi trong suốt vòng đời stream
+              </div>
+            </div>
+          </div>
+        </div>
+        
+    </div>
+
+    <!-- Footer Note -->
+    <div class="border-t border-slate-100 pt-2 flex items-center justify-between text-[11px] text-slate-500">
+      <div class="flex items-center gap-1.5 font-medium">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        <span>Sơ đồ kiến trúc & luồng vận hành kỹ thuật — Đề tài HUDD-TDS</span>
+      </div>
+      <div class="font-mono text-slate-400">Khóa luận Tốt nghiệp CNTT</div>
+    </div>
+  </div>
+</body>
+</html>
